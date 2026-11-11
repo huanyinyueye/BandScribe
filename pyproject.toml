@@ -62,7 +62,7 @@ target-version = "py311"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP", "SIM"]
-ignore = ["E501", "SIM117"]
+ignore = ["E501", "SIM117", "B008"]
 
 [tool.uv]
 # basic-pitch hard-requires TensorFlow < 2.15 on Windows, which needs numpy < 2 and conflicts

@@ -35,11 +35,16 @@ class BasicPitchTranscriber(Transcriber):
 
     def _load(self):
         if self._model is None:
-            logging.getLogger().setLevel(logging.ERROR)  # basic_pitch warns about absent TF
+            logging.disable(logging.WARNING)  # basic_pitch warns about absent TF / CoreML
+            try:
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore")
+                    from basic_pitch import ICASSP_2022_MODEL_PATH
+                    from basic_pitch.inference import Model
+            finally:
+                logging.disable(logging.NOTSET)
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore")
-                from basic_pitch import ICASSP_2022_MODEL_PATH
-                from basic_pitch.inference import Model
 
                 path = Path(ICASSP_2022_MODEL_PATH)
                 if path.suffix != ".onnx":

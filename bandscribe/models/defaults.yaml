@@ -1,0 +1,39 @@
+# Default model choices and thresholds for the pipeline.
+#
+# Initial version written from the assumptions in BANDSCRIBE_SPEC.md (not from benchmark
+# results). Maintained by the research / QA session, which updates it from measurements in
+# BENCHMARKS.md. Read by bandscribe.config.load_defaults(); every key can be overridden per
+# run through PipelineConfig.
+schema_version: 1
+
+separation:
+  primary: bs_roformer_sw        # 6 stems; the only source of guitar / piano stems
+  secondary: scnet_xl_ihf        # 4 stems; cross-check for vocals / drums / bass (null = off)
+  # Weight of the secondary model when blending a shared stem (0 = primary only).
+  blend_weights: {vocals: 0.5, drums: 0.5, bass: 0.5}
+
+transcription:
+  # Tried in order; unavailable backends are skipped and recorded in the manifest.
+  pitched: [muscriptor_medium, basic_pitch]
+  drums: [muscriptor_medium, adtof]
+  mix_vote: muscriptor_medium    # unconditioned transcription of the mix (null = off)
+
+beats: beat_this
+
+thresholds:
+  low_confidence: 0.5            # notes below this are marked (removed in strict mode)
+  onset_tolerance: 0.05          # seconds, pitched consensus
+  drum_onset_tolerance: 0.03
+
+tab:
+  max_span: 5
+  guitar_tuning: auto            # or a key from bandscribe.tab.tunings.TUNINGS
+  bass_tuning: auto
+
+instruments: [vocals, drums, bass, guitar, piano, other]
+
+profiles:
+  quality: {}
+  balanced:
+    separation: {secondary: null}
+    transcription: {mix_vote: null}

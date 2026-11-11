@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import sys
+from pathlib import Path
 
 import typer
 
@@ -33,6 +34,54 @@ def doctor(
     else:
         typer.echo(env_check.format_report(checks))
     raise typer.Exit(1 if env_check.overall_status(checks) == "fail" else 0)
+
+
+@app.command()
+def transcribe(
+    audio: Path = typer.Argument(..., exists=True, dir_okay=False, help="MP3, WAV or FLAC file."),
+    out: Path = typer.Option(None, "--out", help="Output directory (default: out/<name>)."),
+    profile: str = typer.Option("quality", "--profile", help="quality or balanced."),
+    strict: bool = typer.Option(False, "--strict", help="Remove low-confidence notes."),
+    guitar_tuning: str = typer.Option(None, "--guitar-tuning", help="Tuning key, or auto."),
+    bass_tuning: str = typer.Option(None, "--bass-tuning", help="Tuning key, or auto."),
+    title: str = typer.Option(None, "--title", help="Score title (default: file name)."),
+    no_cache: bool = typer.Option(False, "--no-cache", help="Ignore cached stems."),
+) -> None:
+    """Transcribe a song into a full score and parts (.gp, .gp5, MIDI, MusicXML)."""
+    from bandscribe.config import PipelineConfig
+    from bandscribe.pipeline import run_pipeline
+
+    _utf8_stdout()
+    cfg = PipelineConfig.from_defaults(profile, strict=strict, guitar_tuning=guitar_tuning,
+                                       bass_tuning=bass_tuning, title=title,
+                                       reuse_cache=not no_cache)
+    state = {"stage": None, "tenth": -1}
+
+    def progress(stage: str, fraction: float, message: str) -> None:
+        tenth = int(fraction * 10)
+        if stage != state["stage"] or tenth != state["tenth"]:
+            state.update(stage=stage, tenth=tenth)
+            typer.echo(f"[{stage:10s}] {fraction:4.0%} {message}")
+
+    result = run_pipeline(audio, cfg, out, progress)
+    manifest = json.loads((result / "manifest.json").read_text(encoding="utf-8"))
+    typer.echo("")
+    for w in manifest["warnings"]:
+        typer.echo(f"warning: {w}")
+    typer.echo(f"tracks: {manifest['summary']['tracks']}")
+    typer.echo(f"low-confidence notes: {manifest['summary']['low_confidence']}")
+    for fmt, rep in manifest["exports"].items():
+        typer.echo(f"{fmt}: {rep.get('path') or 'FAILED: ' + rep.get('error', '')}")
+    typer.echo(f"output: {result}")
+
+
+@app.command()
+def tunings() -> None:
+    """List the tuning keys accepted by --guitar-tuning / --bass-tuning."""
+    from bandscribe.tab.tunings import TUNINGS
+
+    for t in TUNINGS.values():
+        typer.echo(f"{t.key:20s} {t.instrument:7s} {t.name}")
 
 
 @models_app.command("list")

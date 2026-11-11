@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import contextlib
+import io
 from pathlib import Path
 
 import numpy as np
@@ -83,7 +85,10 @@ class MuScriptorTranscriber(Transcriber):
                     groups = None  # e.g. the `other` stem: let the model name what it hears
                 wav = torch.from_numpy(to_mono(audio))
                 notes: list[Note] = []
-                for ev in model.transcribe((wav, sr), instruments=groups):
+                # MuScriptor prints per-chunk timings to stderr; keep the console readable.
+                with contextlib.redirect_stderr(io.StringIO()):
+                    events = list(model.transcribe((wav, sr), instruments=groups))
+                for ev in events:
                     if not isinstance(ev, NoteEndEvent):
                         continue
                     start = ev.start_event

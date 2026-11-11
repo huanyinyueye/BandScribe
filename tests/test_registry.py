@@ -96,5 +96,16 @@ def test_verify_file(tmp_path):
         verify_file(p, "0" * 64)
 
 
-def test_unpinned_files_listed(reg):
+def test_unpinned_files_listed(tmp_path):
+    def unpin(raw):
+        raw["models"]["scnet_xl_ihf"]["files"][0]["sha256"] = None
+
+    reg = load_registry(_write(tmp_path, unpin))
     assert ("scnet_xl_ihf", "model_scnet_ep_36_sdr_10.0891.ckpt") in reg.unpinned_files()
+
+
+def test_pinned_hashes_are_wellformed(reg):
+    for m in reg.models.values():
+        for f in m.files:
+            assert f.url and f.url.startswith("https://")
+            assert f.sha256 is None or len(f.sha256) == 64

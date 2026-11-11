@@ -23,7 +23,7 @@ def _utf8_stdout() -> None:
 def doctor(
     as_json: bool = typer.Option(False, "--json", help="Print the report as JSON."),
 ) -> None:
-    """Check OS, GPU/CUDA/VRAM, ffmpeg, Node/alphaTab, MuseScore and the model registry."""
+    """Check OS, GPU/CUDA/VRAM, ffmpeg, Node/alphaTab and the model registry."""
     from bandscribe import env_check
 
     _utf8_stdout()
@@ -50,7 +50,7 @@ def models_list() -> None:
                      "pinned" if pinned else "not pinned"))
     widths = [max(len(r[i]) for r in rows) for i in range(len(rows[0]))]
     for r in rows:
-        typer.echo("  ".join(cell.ljust(w) for cell, w in zip(r, widths)).rstrip())
+        typer.echo("  ".join(cell.ljust(w) for cell, w in zip(r, widths, strict=False)).rstrip())
 
 
 if __name__ == "__main__":

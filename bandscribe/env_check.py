@@ -231,40 +231,6 @@ def check_alphatab(exporter_dir: Path = EXPORTER_DIR, which: Callable[[str], str
                  "Gp7Exporter present", details)
 
 
-_MUSESCORE_NAMES = ("MuseScore4", "mscore4", "MuseScore4.exe", "mscore", "musescore")
-
-
-def _musescore_candidates() -> list[Path]:
-    out = []
-    for var in ("ProgramFiles", "ProgramFiles(x86)", "LOCALAPPDATA"):
-        base = os.environ.get(var)
-        if base:
-            out += [Path(base) / "MuseScore 4" / "bin" / "MuseScore4.exe",
-                    Path(base) / "Programs" / "MuseScore 4" / "bin" / "MuseScore4.exe"]
-    return out
-
-
-def find_musescore(which: Callable[[str], str | None] = _which) -> str | None:
-    if env := os.environ.get("BANDSCRIBE_MUSESCORE"):
-        return env if Path(env).is_file() else None
-    for name in _MUSESCORE_NAMES:
-        if exe := which(name):
-            return exe
-    for path in _musescore_candidates():
-        if path.is_file():
-            return str(path)
-    return None
-
-
-def check_musescore(which: Callable[[str], str | None] = _which) -> Check:
-    exe = find_musescore(which)
-    if exe:
-        return Check("musescore", "ok", f"MuseScore found: {exe}", {"path": exe})
-    return Check("musescore", "warn", "MuseScore 4 not found: PDF export and the MuseScore "
-                 "open-file test will be skipped",
-                 hint="install MuseScore 4 or set BANDSCRIBE_MUSESCORE to MuseScore4.exe")
-
-
 def check_registry() -> Check:
     try:
         from bandscribe.models.registry import load_registry
@@ -298,7 +264,7 @@ def check_disk(path: Path | None = None) -> Check:
 
 ALL_CHECKS: tuple[Callable[[], Check], ...] = (
     check_os, check_python, check_uv, check_nvidia_smi, check_torch, check_ffmpeg,
-    check_node, check_alphatab, check_musescore, check_registry, check_disk,
+    check_node, check_alphatab, check_registry, check_disk,
 )
 
 

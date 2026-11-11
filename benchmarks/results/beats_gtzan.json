@@ -1,0 +1,31 @@
+{
+  "dataset": "GTZAN (annotations: CPJKU/beat_this_annotations)",
+  "model": "beat_this final0",
+  "model_sha256": "8c328b45f59d8dd3dff219253ff6a8d6482be57d0133a29140e2febbf8eb8331",
+  "device": "cuda",
+  "tracks": 998,
+  "tracks_with_downbeats": 992,
+  "skipped": [
+    {
+      "file": "jazz.00054.wav",
+      "reason": "jazz.00054.wav: no audio stream found"
+    }
+  ],
+  "beat_f": 0.8872,
+  "downbeat_f": 0.7809,
+  "beat_f_per_genre": {
+    "blues": 0.8298,
+    "classical": 0.6531,
+    "country": 0.9394,
+    "disco": 0.9644,
+    "hiphop": 0.9705,
+    "jazz": 0.8666,
+    "metal": 0.8723,
+    "pop": 0.9491,
+    "reggae": 0.9055,
+    "rock": 0.9209
+  },
+  "peak_vram_gb": 0.154,
+  "seconds_per_audio_minute": 0.404,
+  "includes_audio_decoding": true
+}

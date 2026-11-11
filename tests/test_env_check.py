@@ -80,15 +80,6 @@ def test_alphatab_gp7_exporter_probe(tmp_path):
     assert ok.status == "ok" and ok.details["gp7_exporter"] is True
 
 
-def test_musescore_env_override(tmp_path, monkeypatch):
-    exe = tmp_path / "MuseScore4.exe"
-    exe.write_bytes(b"")
-    monkeypatch.setenv("BANDSCRIBE_MUSESCORE", str(exe))
-    assert env_check.check_musescore(which_map({})).status == "ok"
-    monkeypatch.setenv("BANDSCRIBE_MUSESCORE", str(tmp_path / "missing.exe"))
-    assert env_check.check_musescore(which_map({})).status == "warn"
-
-
 def test_registry_check_reports_unpinned_and_unbenched():
     c = env_check.check_registry()
     assert c.status == "ok"
@@ -117,7 +108,7 @@ def test_doctor_cli_covers_every_required_area():
     result = CliRunner().invoke(app, ["doctor", "--json"])
     report = json.loads(result.stdout)
     names = {c["name"] for c in report["checks"]}
-    assert {"os", "python", "uv", "gpu", "torch", "ffmpeg", "node", "alphatab", "musescore",
+    assert {"os", "python", "uv", "gpu", "torch", "ffmpeg", "node", "alphatab",
             "registry", "disk"} <= names
     assert report["overall"] in {"ok", "warn", "fail"}
     assert result.exit_code == (1 if report["overall"] == "fail" else 0)

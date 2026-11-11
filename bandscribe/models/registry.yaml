@@ -20,14 +20,16 @@ models:
     stems: [vocals, drums, bass, guitar, piano, other]
     milestone: M2
     status: default
-    version: null
+    version: "BS-Rofo-SW-Fixed (jarredou), model code bs-roformer-infer 0.1.5"
     source_urls:
+      - "https://huggingface.co/enerjazzer/BS-ROFO-SW-Fixed"
       - "https://pypi.org/project/bs-roformer-infer/"
       - "https://github.com/openmirlab/bs-roformer-infer"
       - "https://huggingface.co/Acapellas/bs-roformer-sw-6stem-FP16-FP32-onnx"
       - "https://mvsep.com/en/algorithms"
-    files: []
-    license: {code: null, weights: null, note: "unconfirmed; confirm before use (spec 8)"}
+    files:
+      - {name: "BS-Rofo-SW-Fixed.ckpt", url: "https://huggingface.co/enerjazzer/BS-ROFO-SW-Fixed/resolve/main/BS-Rofo-SW-Fixed.ckpt", sha256: "24e7d35ee9c64415673d3fd33e06a67cac2c103c5df6267ba1576459c775916e", size_bytes: 699412152}
+    license: {code: MIT, weights: null, note: "bs-roformer-infer code MIT; checkpoint license unconfirmed"}
     vram_gb: {measured: null, note: "no official figure; MUST-BENCH"}
     verification: [V-2ND, MUST-BENCH]
 
@@ -42,7 +44,8 @@ models:
       - "https://github.com/ZFTurbo/Music-Source-Separation-Training/blob/main/docs/pretrained_models.md"
       - "https://github.com/ZFTurbo/Music-Source-Separation-Training/releases"
     files:
-      - {name: "model_scnet_ep_36_sdr_10.0891.ckpt", url: null, sha256: null, size_bytes: null}
+      - {name: "model_scnet_ep_36_sdr_10.0891.ckpt", url: "https://github.com/ZFTurbo/Music-Source-Separation-Training/releases/download/v1.0.15/model_scnet_ep_36_sdr_10.0891.ckpt", sha256: "ac25975f0f5704f3d1a3c3c251505b7a0f417a22eafe82773440ee4f7e14b74f", size_bytes: 214063778}
+      - {name: "config_musdb18_scnet_xl_more_wide_v5.yaml", url: "https://github.com/ZFTurbo/Music-Source-Separation-Training/releases/download/v1.0.15/config_musdb18_scnet_xl_more_wide_v5.yaml", sha256: "54ddcb8aeeae85c8d0e148741e7d87b0fbd38bd21cffa5d59ba124fe1e672f40", size_bytes: 5906}
     license: {code: MIT, weights: null, note: "MSST code MIT; weights unconfirmed"}
     vram_gb: {measured: null, note: "no official figure; MUST-BENCH"}
     verification: [V-SRC, MUST-BENCH]
@@ -56,7 +59,8 @@ models:
     version: "demucs v4"
     source_urls:
       - "https://github.com/facebookresearch/demucs"
-    files: []
+    files:
+      - {name: "5c90dfd2-34c22ccb.th", url: "https://dl.fbaipublicfiles.com/demucs/hybrid_transformer/5c90dfd2-34c22ccb.th", sha256: null, size_bytes: null}
     license: {code: MIT, weights: MIT, note: "UNVERIFIED in spec 8; confirm"}
     vram_gb: {measured: null, note: "MUST-BENCH"}
     verification: [V-2ND, MUST-BENCH]
@@ -72,7 +76,10 @@ models:
       - "https://arxiv.org/abs/2611.08130"
       - "https://github.com/ArchiMickey/SubRoformer"
       - "https://github.com/ZFTurbo/Music-Source-Separation-Training/pull/267"
-    files: []
+      - "https://huggingface.co/archimickey/SubRoformer"
+    files:
+      - {name: "sub_roformer_base_4stem.ckpt", url: "https://github.com/ZFTurbo/Music-Source-Separation-Training/releases/download/v1.0.23/sub_roformer_base_4stem.ckpt", sha256: "30dfa5fe92e2884cff47ea8c51ae25529c52b66f4cd0ab4f8b9bc77fc9342beb", size_bytes: 207439223}
+      - {name: "subroformer_base_4stem.yaml", url: "https://github.com/ZFTurbo/Music-Source-Separation-Training/releases/download/v1.0.23/subroformer_base_4stem.yaml", sha256: "10093109dad36c120235b0b9791163417415c3b9ef9a1f73de183595b39b12ee", size_bytes: 2664}
     license: {code: null, weights: null, note: "unconfirmed; confirm before use"}
     vram_gb: {measured: null, note: "MUST-BENCH"}
     verification: [V-SRC, CONFLICT, MUST-BENCH]
@@ -86,7 +93,9 @@ models:
     version: "MSST release v1.0.21"
     source_urls:
       - "https://github.com/ZFTurbo/Music-Source-Separation-Training/releases/tag/v1.0.21"
-    files: []
+    files:
+      - {name: "mvsep_mega_model_bs_roformer_53_stems_v1.ckpt", url: "https://github.com/ZFTurbo/Music-Source-Separation-Training/releases/download/v1.0.21/mvsep_mega_model_bs_roformer_53_stems_v1.ckpt", sha256: "c62820893bbf86d4e734f966bd142d9157cfc8bb8e79e9d8f9ea553f3ff3519f", size_bytes: 1368919887}
+      - {name: "mvsep_mega_model_bs_roformer_53_stems.yaml", url: "https://github.com/ZFTurbo/Music-Source-Separation-Training/releases/download/v1.0.21/mvsep_mega_model_bs_roformer_53_stems.yaml", sha256: "7e198062a251587088adb91215a4f44ab59e67bd62fcc805cf54d6e7dfc51103", size_bytes: 4184}
     license: {code: MIT, weights: null, note: "weights carry no explicit license"}
     vram_gb: {measured: null, note: "upstream recommends >= 16 GB; exceeds RTX 3080 10 GB"}
     verification: [V-SRC, MUST-BENCH]
@@ -151,11 +160,12 @@ models:
     name: "Beat This! (CPJKU)"
     milestone: M1
     status: default
-    version: null
+    version: "beat-this 1.1.0, checkpoint final0 (trained on all data except GTZAN)"
     source_urls:
       - "https://pypi.org/project/beat-this/"
       - "https://arxiv.org/abs/2407.21658"
-    files: []
-    license: {code: null, weights: null, note: "confirm at M1"}
+    files:
+      - {name: "final0.ckpt", url: "https://cloud.cp.jku.at/public.php/dav/files/7ik4RrBKTS273gp/final0.ckpt", sha256: "8c328b45f59d8dd3dff219253ff6a8d6482be57d0133a29140e2febbf8eb8331", size_bytes: 81058141}
+    license: {code: MIT, weights: MIT, note: "confirmed from the upstream README and GitHub license (2026-11-12)"}
     vram_gb: {measured: null, note: "MUST-BENCH"}
     verification: [V-SRC, MUST-BENCH]

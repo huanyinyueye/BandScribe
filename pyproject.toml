@@ -10,6 +10,16 @@ dependencies = [
     "imageio-ffmpeg>=0.5",
     "torch>=2.5",
     "numpy>=1.26",
+    "beat-this>=1.1.0",
+    "mir-eval>=0.8.2",
+    "soundfile>=0.14.0",
+    "scipy>=1.17.1",
+    "bs-roformer-infer>=0.1.5",
+    "ml-collections>=1.1.0",
+    "omegaconf>=2.4.0",
+    "beartype>=0.23.1",
+    "demucs>=4.0.1",
+    "hyper-connections>=0.4.11",
 ]
 
 [project.scripts]
@@ -43,3 +53,7 @@ markers = [
 [tool.ruff]
 line-length = 100
 target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM"]
+ignore = ["E501", "SIM117"]

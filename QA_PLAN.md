@@ -15,7 +15,7 @@ Opus 擁有的路徑：`benchmarks/`、`BENCHMARKS.md`、`tests/e2e/`、`bandscr
 | MUSDB18-HQ | 4 stem 分離 SDR | zenodo 3338373 | 下載中 |
 | MoisesDB | guitar / piano 分離 SDR | 需註冊，可能無法自動下載 | 待確認；若取不得，以 MUSDB 的 other + 自建 Slakh 混音代替 |
 | Slakh2100（子集） | 6 stem（含 guitar、piano）分離與多樂器轉譜 | zenodo | 待下載 |
-| GuitarSet | 吉他 note F1、TAB string/fret | zenodo 3371780 | 待下載 |
+| GuitarSet | 吉他 note F1、TAB string/fret | zenodo 3371780 | 已下載並解壓（annotation、mono-mic、mono-pickup_mix 各 360 檔，zip 完整性檢查通過） |
 | ENST-Drums / STAR Drums / ADTOF test | 鼓 per-class onset F1 | 各官方來源 | 待下載 |
 | 使用者樂曲 3–5 首 | E2E | 使用者提供 | 待提供 |
 

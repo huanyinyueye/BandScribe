@@ -60,7 +60,7 @@ models:
     source_urls:
       - "https://github.com/facebookresearch/demucs"
     files:
-      - {name: "5c90dfd2-34c22ccb.th", url: "https://dl.fbaipublicfiles.com/demucs/hybrid_transformer/5c90dfd2-34c22ccb.th", sha256: null, size_bytes: null}
+      - {name: "5c90dfd2-34c22ccb.th", url: "https://dl.fbaipublicfiles.com/demucs/hybrid_transformer/5c90dfd2-34c22ccb.th", sha256: "34c22ccb381c6f9fdbf324f04e1e2fe21aaaf293f5ded163a162697ff9a02ddd", size_bytes: 54996327}
     license: {code: MIT, weights: MIT, note: "UNVERIFIED in spec 8; confirm"}
     vram_gb: {measured: null, note: "MUST-BENCH"}
     verification: [V-2ND, MUST-BENCH]
@@ -133,7 +133,7 @@ models:
     name: "Basic Pitch (Spotify)"
     milestone: M4
     status: default
-    version: null
+    version: "basic-pitch 0.4.0, bundled ICASSP 2022 ONNX model (nmp.onnx inside the wheel)"
     source_urls:
       - "https://github.com/spotify/basic-pitch"
     files: []
@@ -146,11 +146,12 @@ models:
     name: "ADTOF (PyTorch port)"
     milestone: M4
     status: default
-    version: null
+    version: "Frame_RNN, ONNX conversion (HF revision d0e809bb)"
     source_urls:
       - "https://github.com/xavriley/adtof_plus_drum_transcription"
       - "https://huggingface.co/thebluescreen/adtof-drums-onnx"
-    files: []
+    files:
+      - {name: "adtof_frame_rnn.onnx", url: "https://huggingface.co/thebluescreen/adtof-drums-onnx/resolve/d0e809bb1c1b6fe8a4a00c576852117a0636ab5a/adtof_frame_rnn.onnx", sha256: "189ca3c2bc7339a5f0fdc0bb11069d4bcc4fafabd142e945228c368c379b6227", size_bytes: 2171762}
     license: {code: null, weights: "CC BY-NC-SA 4.0", note: "non-commercial"}
     vram_gb: {measured: null, note: "MUST-BENCH"}
     verification: [V-2ND, MUST-BENCH]

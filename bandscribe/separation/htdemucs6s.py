@@ -34,7 +34,6 @@ class HTDemucs6sSeparator(Separator):
         files = ensure_model(MODEL_ID)
         (path, sha), = files.values()
         backend = self.slot.backend
-        started = time.perf_counter()
         peak = 0
 
         def loader():
@@ -47,6 +46,7 @@ class HTDemucs6sSeparator(Separator):
         mean, std = ref.mean(), ref.std().clamp_min(1e-8)
         with self.slot.load(MODEL_ID, loader) as model:
             names = tuple(model.sources)
+            started = time.perf_counter()  # inference time only
 
             def attempt(_size: int, device: str) -> np.ndarray:
                 nonlocal peak

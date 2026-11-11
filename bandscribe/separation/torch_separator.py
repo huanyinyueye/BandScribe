@@ -55,7 +55,8 @@ class TorchModelSpec:
 
 
 def _build_model(spec: TorchModelSpec, config: dict) -> torch.nn.Module:
-    params = dict(config["model"])
+    # The model classes are beartype-checked and expect tuples where YAML gives lists.
+    params = {k: tuple(v) if isinstance(v, list) else v for k, v in config["model"].items()}
     if spec.kind == "bs_roformer_infer":
         from bs_roformer.bs_roformer import BSRoformer
 
@@ -134,10 +135,10 @@ class TorchSeparator(Separator):
         cands += [(1, chunk // 2), (1, chunk // 4)]
         by_size = {bb * cc: (bb, cc) for bb, cc in cands}
         sizes = sorted(by_size, reverse=True)
-        started = time.perf_counter()
         peak = 0
 
         with self.slot.load(self.model_id, self._load) as model:
+            started = time.perf_counter()  # inference time only; model loading excluded
             def attempt(size: int, device: str) -> np.ndarray:
                 nonlocal peak
                 bb, cc = by_size[size]

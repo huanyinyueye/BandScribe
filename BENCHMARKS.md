@@ -32,9 +32,8 @@ its row below is filled in.
 | HTDemucs 6s | | | | not measured (M2) |
 | SubRoformer | | | | not measured (M3) |
 | MVSep Mega 53 | | | | not measured (M3) |
-| MuScriptor medium | | | | not measured (M4) |
-| MuScriptor large | | | | not measured (M4) |
-| Basic Pitch | | | | not measured (M4) |
+| MuScriptor medium | default | 2.29 | 20.5 (GuitarSet, incl. load; GPU shared part of the time) | measured |
+| Basic Pitch | ONNX, CPU | 0 | 0.61 (GuitarSet) | measured |
 | ADTOF | | | | not measured (M4) |
 | Beat This! final0 | FP16, whole track | 0.154 | 0.40 (incl. decoding) | measured, GTZAN run |
 
@@ -44,8 +43,8 @@ its row below is filled in.
 |---|---|---|---|
 | Beat | GTZAN, 998 tracks | beat F / downbeat F | 0.8872 / 0.7809 (see M1) |
 | Separation | MUSDB18-HQ test, MoisesDB | SDR per model per stem | not measured (M2/M3) |
-| Guitar transcription | GuitarSet | note F1 | not measured (M4) |
-| TAB | GuitarSet | string/fret accuracy | not measured (M5) |
+| Guitar transcription | GuitarSet mic, 360 tracks | note F1 (onset) | consensus 0.850, MuScriptor 0.807, Basic Pitch 0.753 |
+| TAB | GuitarSet, oracle pitches | string/fret accuracy | 67.3% tuned (60.1% code defaults), held-out players |
 | Drums | ENST / STAR / ADTOF test | per-class onset F1 | not measured (M4) |
 | End to end | 3-5 user songs | manual review | not measured (M7) |
 
@@ -66,3 +65,50 @@ Metric: `mir_eval.beat.f_measure`, 70 ms window, mean over tracks.
 - Weakest genres for beats: classical 0.653, blues 0.830, jazz 0.867; metal 0.872, rock 0.921.
 - Tempo map and meter have no labelled benchmark here; they are covered by unit tests on
   synthetic beat grids only (constant tempo, tempo change, rubato, 3/4, 5/4, 7/8, mixed meter).
+
+## Guitar transcription and TAB on GuitarSet (QA session, 2026-11-12)
+
+`py -m uv run python benchmarks/bench_guitarset.py --audio mic` -> `results/guitarset_mic.json`.
+Data: GuitarSet, all 360 excerpts, mono microphone audio (closer to a real recording than the
+pickup mix). Metric: `mir_eval.transcription`, 50 ms onset tolerance; "+offset" adds offset
+ratio 0.2. Mean over tracks. Input is clean solo guitar, so this is an upper bound for guitar
+transcribed from a separated stem.
+
+| System | P | R | F1 | F1 +offset | F1 comp | F1 solo |
+|---|---|---|---|---|---|---|
+| MuScriptor medium (guitar) | 0.772 | 0.865 | 0.807 | 0.466 | 0.742 | 0.872 |
+| Basic Pitch (guitar) | 0.674 | 0.874 | 0.753 | 0.536 | 0.722 | 0.785 |
+| Consensus, all notes kept | 0.587 | 0.925 | 0.711 | 0.419 | 0.663 | 0.760 |
+| **Consensus, conf >= 0.5** (= agreed notes only) | **0.912** | 0.801 | **0.850** | 0.491 | 0.806 | 0.893 |
+
+- The pipeline threshold `low_confidence: 0.5` separates exactly the agreed notes: notes below
+  it are mostly false positives (precision 0.59 -> 0.91 when dropped). Keep 0.5; strict mode
+  (drop) gives the best F1, default mode (mark) keeps recall for manual review.
+- Mean agreement between the two backends: 0.558 of notes.
+- Offsets are weak for every system (F1 +offset <= 0.54). Basic Pitch has better offsets than
+  MuScriptor; using Basic Pitch offsets for agreed notes is a candidate improvement (not
+  measured yet).
+- Comping (strummed chords) is harder than solo lines for every system.
+- MuScriptor medium: 360 jobs in 3746 s for 10968 s of audio (20.5 s per audio minute,
+  including model load), peak 2.29 GB VRAM, no OOM. The implementation session used the GPU
+  for part of this run, so the speed is an upper bound.
+
+### TAB string/fret assignment (oracle pitches)
+
+`benchmarks/tune_fret_dp.py` -> `results/fret_dp_tuning*.json` (three passes). The DP gets the
+ground-truth pitches, so this measures fingering choice alone. Tuned on players 00-02, scored on
+held-out players 03-05.
+
+| FretOptions | Train (00-02) | Held-out (03-05) |
+|---|---|---|
+| code defaults (open_bonus 0.5, span 0.6, move 1.0, high_fret 0.05, string_jump 0.15) | 65.2% | 60.1% |
+| pass 1 best (open_bonus 0) | 69.4% | 63.4% |
+| **final** (open_bonus -0.75, span 1.0, move 0.5, high_fret 0.02, string_jump 0.15) | 71.2% | **67.3%** |
+
+- The final weights are in `defaults.yaml` `tab.guitar_dp` and applied to guitar only (commit
+  a1fbeba). Bass keeps the code defaults: no labelled bass data.
+- About a third of notes still differ from the player's choice. Many differences are
+  equally playable alternatives (same pitch at another position), so this is a lower bound on
+  playability, not an error rate.
+- With transcribed notes (pre-tuning weights): 62.2% of MuScriptor notes that matched a
+  reference note got the reference string/fret.

@@ -31,7 +31,7 @@ Opus 擁有的路徑：`benchmarks/`、`BENCHMARKS.md`、`tests/e2e/`、`bandscr
 ### 2.2 轉譜
 - 吉他：GuitarSet（以 hex-pickup 混合後的單聲道作輸入）note F1（onset / onset+offset，`mir_eval.transcription`）。
 - 多樂器：Slakh 子集 per-instrument F1。
-- 比較：MuScriptor small / medium / large、Basic Pitch、consensus。
+- 比較：MuScriptor medium、Basic Pitch、consensus。（使用者決定 2026-11-12：只用 MuScriptor medium，small / large 不納入。）
 - 鼓：per-class onset F1，比較 ADTOF、MuScriptor drums、consensus。
 
 ### 2.3 TAB

@@ -57,6 +57,9 @@ export function ScorePage({ project }: { project: Project }) {
     at.scoreLoaded.on((score) => {
       setLowCount(colorLowConfidence(score));
       setTracks(score.tracks.map((t, i) => ({ index: i, name: t.name })));
+      setSelected(null);
+      // alphaTab shows only the first track by default; the full score is the default view.
+      if (score.tracks.length > 1) window.setTimeout(() => at.renderTracks(score.tracks), 0);
     });
     at.renderFinished.on(() => setReady(true));
     at.playerReady.on(() => setPlayerReady(true));

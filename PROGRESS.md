@@ -18,13 +18,14 @@ Division of work (user instruction, 2026-11-12):
 | M5 | TAB DP, tuning suggestion, drum mapping and voting | done | GuitarSet TAB accuracy |
 | M6 | quantisation, score IR, `.gp` / `.gp5` / MIDI / MusicXML | done; `.gp` verified by alphaTab read-back only | opening the `.gp` in Guitar Pro 8 (user) |
 | M7 | pipeline, manifest, QA hook, `bandscribe transcribe` | done | QA rules (spec section 5), report, end-to-end on real songs |
-| M8 | GUI: FastAPI backend, React + alphaTab frontend, pywebview window | see "GUI state" | |
+| M8 | GUI: FastAPI backend, React + alphaTab frontend, pywebview window | done in the browser; desktop window not checked (see "GUI state") | |
 
 Interfaces for the research / QA session: `docs/INTERFACES.md`.
 
 ## What was verified, and how
 
-- Unit tests: `py -m uv run pytest` (GPU tests are marked `gpu`, long ones `slow`).
+- Tests: `py -m uv run pytest` -> 200 passed on 2026-11-12, including GPU tests (marked `gpu`,
+  long ones `slow`).
 - Adapter smoke test on a 30 s metal clip (`scripts/smoke_adapters.py` ->
   `docs/adapter_smoke.json`). This shows each adapter runs on the RTX 3080; it says nothing
   about transcription or separation quality.
@@ -46,6 +47,22 @@ Interfaces for the research / QA session: `docs/INTERFACES.md`.
 
 - End to end on the same clip with the default `quality` profile: all stages run, `.gp`
   read back by alphaTab matches the score (1526 note heads), `.gp5`, MIDI and MusicXML written.
+
+## GUI state
+
+Checked in a browser against the real backend with the 30 s metal clip (upload through the
+API, a full `quality` run, then a re-run that reused cached stems):
+- Import (waveform, player, recent projects), Processing (per-stage bars, ETA, live VRAM,
+  cancel), Stems (solo / mute, confidence heat strips), Score (full score and single tracks
+  with TAB, low-confidence notes in orange), Export (downloads, read-back result) all rendered
+  and showed the run's data; no console errors.
+- Not exercised by hand: drag-and-drop upload, the Settings form, the "not this instrument"
+  re-run, click-a-beat-to-seek, alphaTab playback, the About page, "open output folder".
+  The backend side of upload, config validation, overrides, cancel and file access is covered
+  by `tests/test_m8_gui_server.py` with a stand-in pipeline.
+- `bandscribe gui` with the pywebview desktop window has not been opened; only
+  `--no-window` (server + browser) was run. pywebview imports correctly.
+- The interface text is Traditional Chinese.
 
 ## Not done or not verified (framework side)
 

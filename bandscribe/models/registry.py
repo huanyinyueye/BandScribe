@@ -53,6 +53,7 @@ class ModelEntry:
     vram_note: str
     verification: tuple[str, ...]
     stems: tuple[str, ...] = field(default_factory=tuple)
+    gated: bool = False  # needs a Hugging Face login and licence acceptance by the user
 
     @property
     def enabled_by_default(self) -> bool:
@@ -132,6 +133,7 @@ def _parse_entry(model_id: str, raw: dict[str, Any]) -> ModelEntry:
         vram_note=vram.get("note", ""),
         verification=tags,
         stems=tuple(raw.get("stems") or ()),
+        gated=bool(raw.get("gated", False)),
     )
 
 

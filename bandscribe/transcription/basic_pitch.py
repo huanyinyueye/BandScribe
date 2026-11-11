@@ -6,6 +6,7 @@ import contextlib
 import io
 import logging
 import tempfile
+import time
 import warnings
 from pathlib import Path
 
@@ -59,6 +60,7 @@ class BasicPitchTranscriber(Transcriber):
         from basic_pitch.inference import predict
 
         model = self._load()
+        started = time.perf_counter()
         family = instrument if instrument in FAMILY_RANGE else "other"
         lo, hi = FAMILY_RANGE[family]
         with tempfile.TemporaryDirectory() as tmp:
@@ -82,4 +84,6 @@ class BasicPitchTranscriber(Transcriber):
             notes.append(Note(float(start), float(end), int(pitch),
                               velocity=int(min(127, max(1, round(amp * 127)))), conf=amp,
                               sources=(MODEL_ID,), instrument=family))
+        self.last_run = {"device": "cpu (onnxruntime)", "peak_vram_gb": 0.0, "oom_retries": 0,
+                         "seconds": round(time.perf_counter() - started, 2), "jobs": 1}
         return sort_notes(notes)

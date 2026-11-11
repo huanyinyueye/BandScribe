@@ -100,32 +100,51 @@ models:
     vram_gb: {measured: null, note: "upstream recommends >= 16 GB; exceeds RTX 3080 10 GB"}
     verification: [V-SRC, MUST-BENCH]
 
+  muscriptor_small:
+    task: transcription
+    name: "MuScriptor small (103M)"
+    milestone: M4
+    status: candidate
+    gated: true
+    version: "PyPI muscriptor 0.4.0"
+    source_urls:
+      - "https://huggingface.co/MuScriptor/muscriptor-small"
+    files:
+      - {name: "model.safetensors", url: "https://huggingface.co/MuScriptor/muscriptor-small/resolve/main/model.safetensors", sha256: null, size_bytes: null}
+    license: {code: MIT, weights: "CC BY-NC 4.0", note: "non-commercial; HF license acceptance required (per repo)"}
+    vram_gb: {measured: null, note: "not run: licence for this repo not accepted on this machine's HF account"}
+    verification: [V-SRC, MUST-BENCH]
+
   muscriptor_medium:
     task: transcription
     name: "MuScriptor medium (307M)"
     milestone: M4
     status: default
+    gated: true
     version: "PyPI muscriptor 0.4.0"
     source_urls:
       - "https://github.com/muscriptor/muscriptor"
       - "https://pypi.org/project/muscriptor/"
-      - "https://huggingface.co/MuScriptor/muscriptor-large"
-    files: []
-    license: {code: MIT, weights: "CC BY-NC 4.0", note: "non-commercial; HF license acceptance required"}
+      - "https://huggingface.co/MuScriptor/muscriptor-medium"
+    files:
+      - {name: "model.safetensors", url: "https://huggingface.co/MuScriptor/muscriptor-medium/resolve/main/model.safetensors", sha256: "ac80adbdf85d87231735fd948af7013441c0afced316c4e9067fd5d8a7fb97ec", size_bytes: null}
+    license: {code: MIT, weights: "CC BY-NC 4.0", note: "non-commercial; HF license acceptance required (per repo)"}
     vram_gb: {measured: null, note: "MUST-BENCH"}
     verification: [V-SRC, MUST-BENCH]
 
   muscriptor_large:
     task: transcription
-    name: "MuScriptor large (~1.3B)"
+    name: "MuScriptor large (~1.4B)"
     milestone: M4
     status: candidate
+    gated: true
     version: "PyPI muscriptor 0.4.0"
     source_urls:
       - "https://huggingface.co/MuScriptor/muscriptor-large"
-    files: []
-    license: {code: MIT, weights: "CC BY-NC 4.0", note: "non-commercial; HF license acceptance required"}
-    vram_gb: {measured: null, note: "spec estimates ~2.6 GB of FP16 weights; MUST-BENCH"}
+    files:
+      - {name: "model.safetensors", url: "https://huggingface.co/MuScriptor/muscriptor-large/resolve/main/model.safetensors", sha256: null, size_bytes: null}
+    license: {code: MIT, weights: "CC BY-NC 4.0", note: "non-commercial; HF license acceptance required (per repo)"}
+    vram_gb: {measured: null, note: "not run: licence for this repo not accepted on this machine's HF account"}
     verification: [V-SRC, MUST-BENCH]
 
   basic_pitch:

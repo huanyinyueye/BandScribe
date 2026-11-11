@@ -179,3 +179,11 @@ def test_beat_tracker_on_click_track(make_wav):
     assert mir_eval.beat.f_measure(ref, res.beats, f_measure_threshold=0.07) > 0.95
     assert build_tempo_map(res.beats).global_bpm == pytest.approx(120.0, abs=1.0)
     assert slot.current is None and slot.records[0].model_id == "beat_this"
+
+
+def test_denominator_does_not_flip_on_pulse_jitter():
+    rng = np.random.default_rng(3)
+    period = 60 / 195  # just under the /8 threshold, with jitter crossing it locally
+    beats = np.cumsum(np.full(64, period) + rng.normal(0, 0.012, 64))
+    m = analyze_meter(beats, beats[::4])
+    assert {b.denominator for b in m.bars} == {4}

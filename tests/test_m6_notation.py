@@ -238,3 +238,17 @@ def test_score_json_round_trip(tmp_path):
     assert back.to_dict() == score.to_dict()
     assert back.tracks[0].notes[1].pos_q == F(1, 3) and back.tracks[0].grid == t.grid
     assert back.note_count() == 2
+
+
+def test_written_tempo_ignores_jitter_but_keeps_real_changes():
+    rng = np.random.default_rng(5)
+    first = np.cumsum(np.full(40, 0.5) + rng.normal(0, 0.01, 40))       # ~120 BPM, jittery
+    second = first[-1] + np.cumsum(np.full(40, 0.4) + rng.normal(0, 0.008, 40))  # ~150 BPM
+    beats = np.concatenate([first, second])
+    tm = build_tempo_map(beats)
+    bars = build_bars(tm, analyze_meter(beats, beats[::4]), float(beats[0]), float(beats[-1]))
+    marks = sorted({round(b.bpm) for b in bars})
+    assert len(marks) <= 4, marks  # not one tempo per bar
+    assert min(marks) == pytest.approx(120, abs=3) and max(marks) == pytest.approx(150, abs=3)
+    # Bar start times are still the tracked ones.
+    assert bars[3].start_time == pytest.approx(float(beats[12]))

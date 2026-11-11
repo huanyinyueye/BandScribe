@@ -8,7 +8,7 @@ from pathlib import Path
 
 import numpy as np
 
-from bandscribe.models.registry import sha256_file
+from bandscribe.models.registry import HashMismatchError, load_registry, sha256_file
 from bandscribe.runtime.vram import ModelSlot, gpu_slot
 from bandscribe.transcription.base import (
     Note,
@@ -47,6 +47,7 @@ class MuScriptorTranscriber(Transcriber):
         self.slot = slot
         self.model_sha256: str | None = None
         self.unavailable_reason: str | None = None
+        self.last_run = None
 
     def _loader(self):
         from muscriptor import TranscriptionModel
@@ -68,26 +69,52 @@ class MuScriptorTranscriber(Transcriber):
             path = try_to_load_from_cache(f"MuScriptor/muscriptor-{self.size}", "model.safetensors")
             if isinstance(path, str) and Path(path).is_file():
                 self.model_sha256 = sha256_file(Path(path))
-        except Exception:  # noqa: BLE001 - the hash is informational
+                self._check_pin()
+        except HashMismatchError:
+            raise
+        except Exception:  # noqa: BLE001 - failing to locate the cached file is not fatal
             self.model_sha256 = None
 
-    def transcribe_many(self, jobs: list[tuple[np.ndarray, int, str]]) -> list[list[Note]]:
-        """Transcribe several (audio, sr, instrument) jobs with a single model load."""
+    def _check_pin(self) -> None:
+        """Refuse weights whose hash differs from the registry pin (spec section 7)."""
+        try:
+            files = load_registry().get(self.name).files
+        except KeyError:
+            return
+        pinned = next((f.sha256 for f in files if f.name == "model.safetensors"), None)
+        if pinned and pinned != self.model_sha256:
+            raise HashMismatchError(f"{self.name}: model.safetensors sha256 {self.model_sha256} "
+                                    f"does not match pinned {pinned}")
+
+    def transcribe_many(self, jobs: list[tuple[np.ndarray, int, str]],
+                        progress=None) -> list[list[Note]]:
+        """Transcribe several (audio, sr, instrument) jobs with a single model load.
+
+        ``progress(fraction, message)`` is called as chunks finish (fraction over all jobs).
+        """
         import torch
         from muscriptor import NoteEndEvent
+        from muscriptor.events import ProgressEvent
 
         results: list[list[Note]] = []
         with self.slot.load(self.name, self._loader) as model:
             self._record_hash()
-            for audio, sr, instrument in jobs:
+            for job_index, (audio, sr, instrument) in enumerate(jobs):
                 groups = None if instrument == "mix" else FAMILY_GROUPS.get(instrument)
                 if instrument not in ("mix", *FAMILY_GROUPS):
                     groups = None  # e.g. the `other` stem: let the model name what it hears
                 wav = torch.from_numpy(to_mono(audio))
                 notes: list[Note] = []
                 # MuScriptor prints per-chunk timings to stderr; keep the console readable.
+                events = []
                 with contextlib.redirect_stderr(io.StringIO()):
-                    events = list(model.transcribe((wav, sr), instruments=groups))
+                    for ev in model.transcribe((wav, sr), instruments=groups):
+                        if isinstance(ev, ProgressEvent):
+                            if progress is not None and ev.total:
+                                progress((job_index + ev.completed / ev.total) / len(jobs),
+                                         f"{self.name}: {instrument}")
+                        else:
+                            events.append(ev)
                 for ev in events:
                     if not isinstance(ev, NoteEndEvent):
                         continue
@@ -103,6 +130,10 @@ class MuScriptorTranscriber(Transcriber):
                                       flags=(f"mus:{start.instrument}",)))
                 results.append(sort_notes(notes))
             del model
+        rec = self.slot.records[-1]
+        self.last_run = {"device": rec.device, "seconds": round(rec.seconds, 2),
+                         "peak_vram_gb": round(rec.peak_gb, 3), "oom_retries": 0,
+                         "jobs": len(jobs), "includes_model_load": True}
         return results
 
     def transcribe(self, audio: np.ndarray, sr: int, instrument: str) -> list[Note]:

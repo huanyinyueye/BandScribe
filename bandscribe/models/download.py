@@ -46,4 +46,8 @@ def ensure_file(model_id: str, file: ModelFile, reg: Registry | None = None) -> 
 def ensure_model(model_id: str, reg: Registry | None = None) -> dict[str, tuple[Path, str]]:
     reg = reg or load_registry()
     entry = reg.get(model_id)
+    if entry.gated:
+        raise UnresolvedFileError(
+            f"{model_id} is gated on Hugging Face: accept its licence there and run "
+            "`uvx hf auth login`; the backend then downloads it through huggingface_hub")
     return {f.name: ensure_file(model_id, f, reg) for f in entry.files}

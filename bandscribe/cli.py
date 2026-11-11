@@ -76,6 +76,19 @@ def transcribe(
 
 
 @app.command()
+def gui(
+    port: int = typer.Option(8765, "--port", help="Port on 127.0.0.1."),
+    browser: bool = typer.Option(False, "--browser", help="Open in the browser, not a window."),
+    no_window: bool = typer.Option(False, "--no-window", help="Only start the server."),
+) -> None:
+    """Open the graphical interface (local server on 127.0.0.1 + desktop window)."""
+    from bandscribe.gui.server import HOST, serve
+
+    typer.echo(f"BandScribe GUI: http://{HOST}:{port}")
+    serve(port, open_window=not no_window, browser=browser)
+
+
+@app.command()
 def tunings() -> None:
     """List the tuning keys accepted by --guitar-tuning / --bass-tuning."""
     from bandscribe.tab.tunings import TUNINGS

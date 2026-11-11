@@ -52,6 +52,7 @@ class TorchModelSpec:
     config: str | None  # registry file name; None = config shipped inside a Python package
     batch_size: int = 2
     mixture_consistent: bool = True
+    chunk_size: int | None = None  # overrides the config's chunk (to fit 10 GB of VRAM)
 
 
 def _build_model(spec: TorchModelSpec, config: dict) -> torch.nn.Module:
@@ -106,7 +107,8 @@ class TorchSeparator(Separator):
         chunk = inf.get("chunk_size") or self._config.get("audio", {}).get("chunk_size")
         if not chunk:
             raise ValueError(f"{self.model_id}: config has no chunk_size")
-        return int(self._chunk_override or chunk), max(2, int(inf.get("num_overlap", 2)))
+        return (int(self._chunk_override or self.spec.chunk_size or chunk),
+                max(2, int(inf.get("num_overlap", 2))))
 
     # -- inference -------------------------------------------------------------------------
     def _load(self) -> torch.nn.Module:
@@ -181,5 +183,9 @@ SPECS: dict[str, TorchModelSpec] = {
     "mvsep_mega53": TorchModelSpec("mvsep_mega53", "msst_bs_roformer",
                                    "mvsep_mega_model_bs_roformer_53_stems_v1.ckpt",
                                    "mvsep_mega_model_bs_roformer_53_stems.yaml", batch_size=1,
-                                   mixture_consistent=False),
+                                   mixture_consistent=False,
+                                   # The config's 882000-sample chunk peaks at 10.25 GB on the
+                                   # RTX 3080 and spills into shared memory (489 s per audio
+                                   # minute); 441000 peaks at 7.04 GB (31 s per audio minute).
+                                   chunk_size=441000),
 }

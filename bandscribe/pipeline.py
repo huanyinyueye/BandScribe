@@ -228,12 +228,16 @@ def _transcribe(run: _Run, audio, stems: dict, activity: dict) -> tuple[dict, di
             jobs.append(("mix", audio.samples))
         try:
             tr = get_transcriber(backend)
+            def sub(fraction: float, message: str = "", bi: int = bi) -> None:
+                run.check_cancel()
+                run.report((bi + fraction) / max(1, len(backends)), message)
+
             if hasattr(tr, "transcribe_many"):
-                outs = tr.transcribe_many([(a, audio.sr, f) for f, a in jobs])
+                outs = tr.transcribe_many([(a, audio.sr, f) for f, a in jobs], progress=sub)
             else:
                 outs = []
-                for f, a in jobs:
-                    run.check_cancel()
+                for k, (f, a) in enumerate(jobs):
+                    sub(k / len(jobs), f"{backend}: {f}")
                     outs.append(tr.transcribe(a, audio.sr, f))
         except TranscriberUnavailable as exc:
             run.manifest["unavailable"][backend] = str(exc)
@@ -250,6 +254,7 @@ def _transcribe(run: _Run, audio, stems: dict, activity: dict) -> tuple[dict, di
         run.model(backend, sha256=getattr(tr, "model_sha256", None))
         run.manifest["transcription"][backend] = {
             "seconds": round(time.perf_counter() - started, 2),
+            "last_run": getattr(tr, "last_run", None),
             "notes": {f: len(n) for f, n in raw[backend].items()}}
     return raw, {"pitched": pitched, "drums": do_drums}, mix_notes
 

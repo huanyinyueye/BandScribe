@@ -1,0 +1,200 @@
+{
+ "clip": "metal.00010.wav",
+ "seconds": 30.0,
+ "separators": [
+  {
+   "model": "bs_roformer_sw",
+   "options": {},
+   "ok": true,
+   "device": "cuda",
+   "stems": 6,
+   "batch_size": 2,
+   "chunk_size": 588800,
+   "peak_vram_gb": 3.97,
+   "seconds": 4.67,
+   "s_per_audio_minute": 9.3,
+   "oom_retries": 0,
+   "notes": [],
+   "stems_sum_vs_mix_db": 25.2,
+   "files_sha256": {
+    "BS-Rofo-SW-Fixed.ckpt": "24e7d35ee9c64415673d3fd33e06a67cac2c103c5df6267ba1576459c775916e"
+   }
+  },
+  {
+   "model": "scnet_xl_ihf",
+   "options": {},
+   "ok": true,
+   "device": "cuda",
+   "stems": 4,
+   "batch_size": 2,
+   "chunk_size": 485100,
+   "peak_vram_gb": 2.38,
+   "seconds": 9.72,
+   "s_per_audio_minute": 19.4,
+   "oom_retries": 0,
+   "notes": [],
+   "stems_sum_vs_mix_db": 34.3,
+   "files_sha256": {
+    "model_scnet_ep_36_sdr_10.0891.ckpt": "ac25975f0f5704f3d1a3c3c251505b7a0f417a22eafe82773440ee4f7e14b74f",
+    "config_musdb18_scnet_xl_more_wide_v5.yaml": "54ddcb8aeeae85c8d0e148741e7d87b0fbd38bd21cffa5d59ba124fe1e672f40"
+   }
+  },
+  {
+   "model": "htdemucs_6s",
+   "options": {},
+   "ok": true,
+   "device": "cuda",
+   "stems": 6,
+   "batch_size": 1,
+   "chunk_size": 0,
+   "peak_vram_gb": 0.61,
+   "seconds": 1.3,
+   "s_per_audio_minute": 2.6,
+   "oom_retries": 0,
+   "notes": [],
+   "stems_sum_vs_mix_db": 15.7,
+   "files_sha256": {
+    "5c90dfd2-34c22ccb.th": "34c22ccb381c6f9fdbf324f04e1e2fe21aaaf293f5ded163a162697ff9a02ddd"
+   }
+  },
+  {
+   "model": "subroformer",
+   "options": {},
+   "ok": true,
+   "device": "cuda",
+   "stems": 4,
+   "batch_size": 2,
+   "chunk_size": 96000,
+   "peak_vram_gb": 1.64,
+   "seconds": 9.55,
+   "s_per_audio_minute": 19.1,
+   "oom_retries": 0,
+   "notes": [],
+   "stems_sum_vs_mix_db": 23.4,
+   "files_sha256": {
+    "sub_roformer_base_4stem.ckpt": "30dfa5fe92e2884cff47ea8c51ae25529c52b66f4cd0ab4f8b9bc77fc9342beb",
+    "subroformer_base_4stem.yaml": "10093109dad36c120235b0b9791163417415c3b9ef9a1f73de183595b39b12ee"
+   }
+  },
+  {
+   "model": "mvsep_mega53",
+   "options": {},
+   "ok": true,
+   "device": "cuda",
+   "stems": 53,
+   "batch_size": 1,
+   "chunk_size": 882000,
+   "peak_vram_gb": 10.25,
+   "seconds": 244.45,
+   "s_per_audio_minute": 488.9,
+   "oom_retries": 0,
+   "notes": [],
+   "stems_sum_vs_mix_db": -1.6,
+   "files_sha256": {
+    "mvsep_mega_model_bs_roformer_53_stems_v1.ckpt": "c62820893bbf86d4e734f966bd142d9157cfc8bb8e79e9d8f9ea553f3ff3519f",
+    "mvsep_mega_model_bs_roformer_53_stems.yaml": "7e198062a251587088adb91215a4f44ab59e67bd62fcc805cf54d6e7dfc51103"
+   }
+  },
+  {
+   "model": "mvsep_mega53",
+   "options": {
+    "chunk_size": 441000
+   },
+   "ok": true,
+   "device": "cuda",
+   "stems": 53,
+   "batch_size": 1,
+   "chunk_size": 441000,
+   "peak_vram_gb": 7.04,
+   "seconds": 15.64,
+   "s_per_audio_minute": 31.3,
+   "oom_retries": 0,
+   "notes": [],
+   "stems_sum_vs_mix_db": -2.1,
+   "files_sha256": {
+    "mvsep_mega_model_bs_roformer_53_stems_v1.ckpt": "c62820893bbf86d4e734f966bd142d9157cfc8bb8e79e9d8f9ea553f3ff3519f",
+    "mvsep_mega_model_bs_roformer_53_stems.yaml": "7e198062a251587088adb91215a4f44ab59e67bd62fcc805cf54d6e7dfc51103"
+   }
+  },
+  {
+   "model": "mvsep_mega53",
+   "options": {
+    "chunk_size": 220500
+   },
+   "ok": true,
+   "device": "cuda",
+   "stems": 53,
+   "batch_size": 1,
+   "chunk_size": 220500,
+   "peak_vram_gb": 5.44,
+   "seconds": 15.18,
+   "s_per_audio_minute": 30.4,
+   "oom_retries": 0,
+   "notes": [],
+   "stems_sum_vs_mix_db": -1.8,
+   "files_sha256": {
+    "mvsep_mega_model_bs_roformer_53_stems_v1.ckpt": "c62820893bbf86d4e734f966bd142d9157cfc8bb8e79e9d8f9ea553f3ff3519f",
+    "mvsep_mega_model_bs_roformer_53_stems.yaml": "7e198062a251587088adb91215a4f44ab59e67bd62fcc805cf54d6e7dfc51103"
+   }
+  }
+ ],
+ "transcribers": [
+  {
+   "model": "muscriptor_small",
+   "input": "guitar stem (bs_roformer_sw)",
+   "ok": false,
+   "unavailable": "cannot download 'MuScriptor/muscriptor-small' from HuggingFace: the MuScriptor model weights are gated and require a (free) HuggingFace account."
+  },
+  {
+   "model": "muscriptor_medium",
+   "input": "guitar stem (bs_roformer_sw)",
+   "ok": true,
+   "notes": 356,
+   "sha256": "ac80adbdf85d87231735fd948af7013441c0afced316c4e9067fd5d8a7fb97ec",
+   "device": "cuda",
+   "seconds": 14.06,
+   "peak_vram_gb": 2.288,
+   "oom_retries": 0,
+   "jobs": 1,
+   "includes_model_load": true
+  },
+  {
+   "model": "muscriptor_large",
+   "input": "guitar stem (bs_roformer_sw)",
+   "ok": false,
+   "unavailable": "cannot download 'MuScriptor/muscriptor-large' from HuggingFace: the MuScriptor model weights are gated and require a (free) HuggingFace account."
+  },
+  {
+   "model": "basic_pitch",
+   "input": "guitar stem (bs_roformer_sw)",
+   "ok": true,
+   "notes": 398,
+   "sha256": "2c3c1d144bfa61ad236e92e169c13535c880469a12a047d4e73451f2c059a0ec",
+   "device": "cpu (onnxruntime)",
+   "peak_vram_gb": 0.0,
+   "oom_retries": 0,
+   "seconds": 1.67,
+   "jobs": 1
+  },
+  {
+   "model": "adtof",
+   "input": "drums stem (bs_roformer_sw)",
+   "ok": true,
+   "notes": 333,
+   "sha256": "189ca3c2bc7339a5f0fdc0bb11069d4bcc4fafabd142e945228c368c379b6227",
+   "device": "cpu (onnxruntime)",
+   "peak_vram_gb": 0.0,
+   "oom_retries": 0,
+   "seconds": 0.58,
+   "jobs": 1
+  }
+ ],
+ "beats": {
+  "model": "beat_this",
+  "ok": true,
+  "device": "cuda",
+  "beats": 86,
+  "peak_vram_gb": 0.154,
+  "seconds": 4.02
+ }
+}

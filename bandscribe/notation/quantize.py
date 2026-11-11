@@ -27,6 +27,10 @@ GRIDS = {
 }
 
 
+# A bar within this fraction of its tempo segment is written at the segment tempo.
+TEMPO_MARK_TOLERANCE = 0.08
+
+
 def default_grid(denominator: int) -> int:
     return 2 if denominator >= 8 else 4
 
@@ -90,6 +94,11 @@ def build_bars(tempo_map: TempoMap, meter: Meter, first_time: float, last_time: 
         t1 = float(tempo_map.beat_to_time(start + count))
         length_q = Fraction(4 * count, d)
         bpm = 60.0 * float(length_q) / (t1 - t0) if t1 > t0 else tempo_map.global_bpm or 120.0
+        # Written tempo: the tempo segment's value unless this bar really deviates from it.
+        # Bar start times stay exact; this only keeps tempo marks from changing every bar.
+        seg_bpm = tempo_map.bpm_at((t0 + t1) / 2) * 4 / d
+        if seg_bpm > 0 and abs(bpm - seg_bpm) / seg_bpm <= TEMPO_MARK_TOLERANCE:
+            bpm = seg_bpm
         bars.append(BarSpec(i, count, d, start, q, round(bpm, 2), t0, t1, None, confident))
         q += length_q
     for s in sections or []:

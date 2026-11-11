@@ -62,6 +62,9 @@ class Note:
 
 class Transcriber(ABC):
     name: str
+    # Filled by each backend after a run: device, seconds, peak_vram_gb, oom_retries, jobs.
+    last_run: dict | None = None
+    model_sha256: str | None = None
 
     @abstractmethod
     def transcribe(self, audio: np.ndarray, sr: int, instrument: str) -> list[Note]:

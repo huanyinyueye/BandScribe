@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import time
+
 import numpy as np
 
 from bandscribe.models.download import ensure_model
@@ -72,6 +74,7 @@ class AdtofTranscriber(Transcriber):
     def transcribe(self, audio: np.ndarray, sr: int, instrument: str = "drums") -> list[Note]:
         if instrument != "drums":
             raise ValueError("ADTOF only transcribes drums")
+        started = time.perf_counter()
         act = self.activations(audio, sr)
         notes = []
         for k, (_label, pitch, threshold) in enumerate(CLASSES):
@@ -80,4 +83,6 @@ class AdtofTranscriber(Transcriber):
                 notes.append(Note(t, t + HIT_DURATION, pitch,
                                   velocity=int(min(127, max(30, round(40 + 87 * conf)))),
                                   conf=conf, sources=(MODEL_ID,), instrument="drums"))
+        self.last_run = {"device": "cpu (onnxruntime)", "peak_vram_gb": 0.0, "oom_retries": 0,
+                         "seconds": round(time.perf_counter() - started, 2), "jobs": 1}
         return sort_notes(notes)

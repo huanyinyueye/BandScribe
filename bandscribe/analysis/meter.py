@@ -41,10 +41,20 @@ class Meter:
         return max(sorted(set(sigs)), key=sigs.count)
 
 
-def _denominator(bar_beats: np.ndarray) -> int:
-    if len(bar_beats) < 2:
+PULSE_WINDOW = 6  # beats of context on each side when judging a bar's pulse
+
+
+def _denominator(beats: np.ndarray, start: int, end: int) -> int:
+    """Denominator of the bar covering beats [start, end), from the surrounding pulse.
+
+    The pulse is the median inter-beat interval of the bar plus PULSE_WINDOW beats on each
+    side, so a bar does not flip between /4 and /8 when the tracked pulse merely jitters
+    around the threshold, while a real change of pulse (4/4 into a fast 7/8) is followed.
+    """
+    lo, hi = max(0, start - PULSE_WINDOW), min(len(beats), end + PULSE_WINDOW + 1)
+    if hi - lo < 2:
         return 4
-    bpm = 60.0 / float(np.median(np.diff(bar_beats)))
+    bpm = 60.0 / float(np.median(np.diff(beats[lo:hi])))
     return 8 if bpm >= FAST_BEAT_BPM else 4
 
 
@@ -72,7 +82,7 @@ def analyze_meter(beats: np.ndarray, downbeats: np.ndarray, *, tol: float = 0.05
         end = db_idx[n + 1] if n + 1 < len(db_idx) else len(beats)
         end_time = float(beats[end]) if end < len(beats) else float(beats[-1] + last_ibi)
         raw.append((start, end - start, float(beats[start]), end_time,
-                    _denominator(beats[start:end + 1])))
+                    _denominator(beats, start, end)))
     counts = [r[1] for r in raw]
     bars = []
     for n, (start, count, t0, t1, den) in enumerate(raw):

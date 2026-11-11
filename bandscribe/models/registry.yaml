@@ -1,0 +1,161 @@
+# BandScribe model registry (spec section 4, 7, 8, 12.2).
+#
+# Rules
+# - sha256: null means "not pinned yet". Nothing is pinned until the file has been
+#   downloaded on this machine and hashed; hashes are never copied from memory.
+#   `bandscribe.models.registry.verify_file` refuses to load a pinned file whose hash differs.
+# - files: [] means the exact weight file(s) have not been resolved from the source page yet;
+#   that happens in the milestone that integrates the model.
+# - vram_gb.measured stays null until benchmarked on the RTX 3080 (MUST-BENCH, spec 12.2);
+#   vram_gb.note carries only what the spec/source states.
+# - status: default | candidate | baseline | disabled
+# - verification uses the spec section-0 tags (V-SRC, V-2ND, CONFLICT, UNVERIFIED, MUST-BENCH).
+schema_version: 1
+cache_dir: "~/.cache/bandscribe/models"
+
+models:
+  bs_roformer_sw:
+    task: separation
+    name: "BS-RoFormer SW (6 stem)"
+    stems: [vocals, drums, bass, guitar, piano, other]
+    milestone: M2
+    status: default
+    version: null
+    source_urls:
+      - "https://pypi.org/project/bs-roformer-infer/"
+      - "https://github.com/openmirlab/bs-roformer-infer"
+      - "https://huggingface.co/Acapellas/bs-roformer-sw-6stem-FP16-FP32-onnx"
+      - "https://mvsep.com/en/algorithms"
+    files: []
+    license: {code: null, weights: null, note: "unconfirmed; confirm before use (spec 8)"}
+    vram_gb: {measured: null, note: "no official figure; MUST-BENCH"}
+    verification: [V-2ND, MUST-BENCH]
+
+  scnet_xl_ihf:
+    task: separation
+    name: "SCNet XL IHF (4 stem, MSST)"
+    stems: [vocals, drums, bass, other]
+    milestone: M2
+    status: default
+    version: "MSST release v1.0.15"
+    source_urls:
+      - "https://github.com/ZFTurbo/Music-Source-Separation-Training/blob/main/docs/pretrained_models.md"
+      - "https://github.com/ZFTurbo/Music-Source-Separation-Training/releases"
+    files:
+      - {name: "model_scnet_ep_36_sdr_10.0891.ckpt", url: null, sha256: null, size_bytes: null}
+    license: {code: MIT, weights: null, note: "MSST code MIT; weights unconfirmed"}
+    vram_gb: {measured: null, note: "no official figure; MUST-BENCH"}
+    verification: [V-SRC, MUST-BENCH]
+
+  htdemucs_6s:
+    task: separation
+    name: "HTDemucs 6s (baseline)"
+    stems: [vocals, drums, bass, guitar, piano, other]
+    milestone: M2
+    status: baseline
+    version: "demucs v4"
+    source_urls:
+      - "https://github.com/facebookresearch/demucs"
+    files: []
+    license: {code: MIT, weights: MIT, note: "UNVERIFIED in spec 8; confirm"}
+    vram_gb: {measured: null, note: "MUST-BENCH"}
+    verification: [V-2ND, MUST-BENCH]
+
+  subroformer:
+    task: separation
+    name: "SubRoformer (4 stem)"
+    stems: [vocals, drums, bass, other]
+    milestone: M3
+    status: candidate
+    version: "MSST release v1.0.23 (key: sub_roformer)"
+    source_urls:
+      - "https://arxiv.org/abs/2611.08130"
+      - "https://github.com/ArchiMickey/SubRoformer"
+      - "https://github.com/ZFTurbo/Music-Source-Separation-Training/pull/267"
+    files: []
+    license: {code: null, weights: null, note: "unconfirmed; confirm before use"}
+    vram_gb: {measured: null, note: "MUST-BENCH"}
+    verification: [V-SRC, CONFLICT, MUST-BENCH]
+
+  mvsep_mega53:
+    task: separation
+    name: "MVSep Mega 53 Stems"
+    stems: []  # 53 instruments; stems do NOT sum to the mixture (no mixture-consistency assumption)
+    milestone: M3
+    status: disabled  # spec 12.2: disabled by default on 10 GB; experimental
+    version: "MSST release v1.0.21"
+    source_urls:
+      - "https://github.com/ZFTurbo/Music-Source-Separation-Training/releases/tag/v1.0.21"
+    files: []
+    license: {code: MIT, weights: null, note: "weights carry no explicit license"}
+    vram_gb: {measured: null, note: "upstream recommends >= 16 GB; exceeds RTX 3080 10 GB"}
+    verification: [V-SRC, MUST-BENCH]
+
+  muscriptor_medium:
+    task: transcription
+    name: "MuScriptor medium (307M)"
+    milestone: M4
+    status: default
+    version: "PyPI muscriptor 0.4.0"
+    source_urls:
+      - "https://github.com/muscriptor/muscriptor"
+      - "https://pypi.org/project/muscriptor/"
+      - "https://huggingface.co/MuScriptor/muscriptor-large"
+    files: []
+    license: {code: MIT, weights: "CC BY-NC 4.0", note: "non-commercial; HF license acceptance required"}
+    vram_gb: {measured: null, note: "MUST-BENCH"}
+    verification: [V-SRC, MUST-BENCH]
+
+  muscriptor_large:
+    task: transcription
+    name: "MuScriptor large (~1.3B)"
+    milestone: M4
+    status: candidate
+    version: "PyPI muscriptor 0.4.0"
+    source_urls:
+      - "https://huggingface.co/MuScriptor/muscriptor-large"
+    files: []
+    license: {code: MIT, weights: "CC BY-NC 4.0", note: "non-commercial; HF license acceptance required"}
+    vram_gb: {measured: null, note: "spec estimates ~2.6 GB of FP16 weights; MUST-BENCH"}
+    verification: [V-SRC, MUST-BENCH]
+
+  basic_pitch:
+    task: transcription
+    name: "Basic Pitch (Spotify)"
+    milestone: M4
+    status: default
+    version: null
+    source_urls:
+      - "https://github.com/spotify/basic-pitch"
+    files: []
+    license: {code: "Apache-2.0", weights: "Apache-2.0", note: "UNVERIFIED in spec; confirm"}
+    vram_gb: {measured: null, note: "lightweight; MUST-BENCH"}
+    verification: [UNVERIFIED, MUST-BENCH]
+
+  adtof:
+    task: drum_transcription
+    name: "ADTOF (PyTorch port)"
+    milestone: M4
+    status: default
+    version: null
+    source_urls:
+      - "https://github.com/xavriley/adtof_plus_drum_transcription"
+      - "https://huggingface.co/thebluescreen/adtof-drums-onnx"
+    files: []
+    license: {code: null, weights: "CC BY-NC-SA 4.0", note: "non-commercial"}
+    vram_gb: {measured: null, note: "MUST-BENCH"}
+    verification: [V-2ND, MUST-BENCH]
+
+  beat_this:
+    task: beat_tracking
+    name: "Beat This! (CPJKU)"
+    milestone: M1
+    status: default
+    version: null
+    source_urls:
+      - "https://pypi.org/project/beat-this/"
+      - "https://arxiv.org/abs/2407.21658"
+    files: []
+    license: {code: null, weights: null, note: "confirm at M1"}
+    vram_gb: {measured: null, note: "MUST-BENCH"}
+    verification: [V-SRC, MUST-BENCH]

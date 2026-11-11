@@ -14,7 +14,7 @@ Division of work (user instruction, 2026-11-12):
 | M1 | audio loading, Beat This!, tempo map, meter | done (GTZAN beat F 88.72 / downbeat 78.09) | |
 | M2 | adapters: BS-RoFormer SW, SCNet XL IHF, HTDemucs 6s; ensemble + confidence | done, smoke-tested on the RTX 3080 | MUSDB18-HQ SDR table; "ensemble not worse than best single model" |
 | M3 | adapters: SubRoformer, Mega 53 | done, smoke-tested | comparison and choice of defaults |
-| M4 | attribution, MuScriptor / Basic Pitch / ADTOF adapters, consensus | done; MuScriptor small / large not run (see below) | GuitarSet note F1; drum F1 |
+| M4 | attribution, MuScriptor / Basic Pitch / ADTOF adapters, consensus | done (MuScriptor medium only) | GuitarSet note F1; drum F1 |
 | M5 | TAB DP, tuning suggestion, drum mapping and voting | done | GuitarSet TAB accuracy |
 | M6 | quantisation, score IR, `.gp` / `.gp5` / MIDI / MusicXML | done; `.gp` verified by alphaTab read-back only | opening the `.gp` in Guitar Pro 8 (user) |
 | M7 | pipeline, manifest, QA hook, `bandscribe transcribe` | done | QA rules (spec section 5), report, end-to-end on real songs |
@@ -41,7 +41,6 @@ Interfaces for the research / QA session: `docs/INTERFACES.md`.
 | Mega 53, chunk 441000 (adapter default) | cuda | 7.04 GB | 15.6 s | 0 |
 | Mega 53, chunk 220500 | cuda | 5.44 GB | 15.2 s | 0 |
 | MuScriptor medium | cuda | 2.29 GB | 14.1 s (incl. load) | 0 |
-| MuScriptor small / large | not run | | | |
 | Basic Pitch | CPU (ONNX) | 0 | 1.7 s | 0 |
 | ADTOF | CPU (ONNX) | 0 | 0.6 s | 0 |
 
@@ -66,10 +65,6 @@ API, a full `quality` run, then a re-run that reused cached stems):
 
 ## Not done or not verified (framework side)
 
-- **MuScriptor small and large have never run here.** Each Hugging Face repo is gated
-  separately; this machine's account has access to `muscriptor-medium` only. The adapters
-  raise `TranscriberUnavailable` for them. To enable: accept the licence at
-  `huggingface.co/MuScriptor/muscriptor-small` and `.../muscriptor-large`.
 - **No `.gp` file has been opened in Guitar Pro 8.** Only the alphaTab read-back check ran.
 - Guitar is one track, "Guitar (combined)". The stereo / register split into two guitars
   described in spec 2.2 is not implemented.
@@ -84,6 +79,9 @@ API, a full `quality` run, then a re-run that reused cached stems):
 
 ## Decisions made on the user's behalf (2026-11-12)
 
+- MuScriptor is used in the medium size only (user decision). Small and large were removed
+  from the registry, the adapter factory, the GUI and the smoke test; they are never
+  downloaded. Hugging Face login is done and `muscriptor-medium` is accessible.
 - Downloads need no per-file confirmation (user instruction).
 - MuseScore is not used; Guitar Pro is the only notation target. PDF export is dropped
   (Guitar Pro can print / export PDF from the `.gp` file).

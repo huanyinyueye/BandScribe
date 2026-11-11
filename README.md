@@ -21,10 +21,14 @@ uv is installed as a Python module here, so commands start with `py -m uv`.
     cd gui; npm install; npm run build; cd ..
     py -m uv run bandscribe doctor
 
-MuScriptor weights are gated on Hugging Face, one repository per model size. Accept the
-licence on the model page (`huggingface.co/MuScriptor/muscriptor-medium`, and `-small` /
-`-large` if you want those sizes), then run `uvx hf auth login`. Without access the pipeline
-skips MuScriptor, says so, and uses Basic Pitch and ADTOF alone.
+MuScriptor weights are gated on Hugging Face. Accept the licence on
+`huggingface.co/MuScriptor/muscriptor-medium` (the only size BandScribe uses), then log in:
+
+    uvx hf auth login
+
+`uvx` is not on PATH in PowerShell on this machine; if the command is not found, run it by
+its full path: `C:\Users\Shou\AppData\Roaming\Python\Python313\Scripts\uvx.exe hf auth login`.
+Without access the pipeline skips MuScriptor, says so, and uses Basic Pitch and ADTOF alone.
 
 ## Use
 

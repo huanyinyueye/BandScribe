@@ -40,8 +40,8 @@ def family_of(group: str) -> str:
 
 class MuScriptorTranscriber(Transcriber):
     def __init__(self, size: str = "medium", slot: ModelSlot = gpu_slot) -> None:
-        if size not in ("small", "medium", "large"):
-            raise ValueError("size must be small, medium or large")
+        if size != "medium":  # user decision 2026-11-12: medium is the only size used
+            raise ValueError("only the medium MuScriptor model is supported")
         self.size = size
         self.name = f"muscriptor_{size}"
         self.slot = slot

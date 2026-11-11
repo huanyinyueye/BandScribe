@@ -36,7 +36,8 @@ def test_spec_defaults(reg):
     # Spec 12.2: Mega 53 disabled on 10 GB; MuScriptor medium is the default.
     assert reg.get("mvsep_mega53").status == "disabled"
     assert reg.get("muscriptor_medium").enabled_by_default
-    assert not reg.get("muscriptor_large").enabled_by_default
+    # User decision: MuScriptor medium only.
+    assert "muscriptor_small" not in reg.models and "muscriptor_large" not in reg.models
     assert reg.get("htdemucs_6s").status == "baseline"
     assert reg.get("bs_roformer_sw").enabled_by_default
 

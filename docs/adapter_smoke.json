@@ -140,12 +140,6 @@
  ],
  "transcribers": [
   {
-   "model": "muscriptor_small",
-   "input": "guitar stem (bs_roformer_sw)",
-   "ok": false,
-   "unavailable": "cannot download 'MuScriptor/muscriptor-small' from HuggingFace: the MuScriptor model weights are gated and require a (free) HuggingFace account."
-  },
-  {
    "model": "muscriptor_medium",
    "input": "guitar stem (bs_roformer_sw)",
    "ok": true,
@@ -157,12 +151,6 @@
    "oom_retries": 0,
    "jobs": 1,
    "includes_model_load": true
-  },
-  {
-   "model": "muscriptor_large",
-   "input": "guitar stem (bs_roformer_sw)",
-   "ok": false,
-   "unavailable": "cannot download 'MuScriptor/muscriptor-large' from HuggingFace: the MuScriptor model weights are gated and require a (free) HuggingFace account."
   },
   {
    "model": "basic_pitch",

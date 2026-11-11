@@ -58,7 +58,7 @@ tr.model_sha256   # hash of the weights that were loaded
 
 | model_id | instruments | notes |
 |---|---|---|
-| `muscriptor_small` / `_medium` / `_large` | vocals, bass, guitar, piano, other, drums, `mix` | gated on Hugging Face per repo; raises `TranscriberUnavailable` with instructions when the account has no access. `transcribe_many([(audio, sr, instrument), ...])` runs several jobs with one model load. `instrument="mix"` is unconditioned and labels each note with the family it detected. No per-note confidence (conf = 1.0). |
+| `muscriptor_medium` | vocals, bass, guitar, piano, other, drums, `mix` | the only MuScriptor size (user decision 2026-11-12); gated on Hugging Face; raises `TranscriberUnavailable` with instructions when the account has no access. `transcribe_many([(audio, sr, instrument), ...])` runs several jobs with one model load. `instrument="mix"` is unconditioned and labels each note with the family it detected. No per-note confidence (conf = 1.0). |
 | `basic_pitch` | vocals, bass, guitar, piano, other | ONNX on CPU; conf = note amplitude. opts: `onset_threshold`, `frame_threshold`, `minimum_note_ms` |
 | `adtof` | drums | ONNX on CPU; 5 classes (kick 36, snare 38, tom 47, hi-hat 42, cymbal 49); conf = activation. `tr.activations(audio, sr)` returns the (frames, 5) matrix at 100 fps |
 

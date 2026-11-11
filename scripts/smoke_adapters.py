@@ -27,8 +27,7 @@ OUT = Path(__file__).resolve().parent.parent / "docs" / "adapter_smoke.json"
 SEPARATORS = [("bs_roformer_sw", {}), ("scnet_xl_ihf", {}), ("htdemucs_6s", {}),
               ("subroformer", {}), ("mvsep_mega53", {}),
               ("mvsep_mega53", {"chunk_size": 441000}), ("mvsep_mega53", {"chunk_size": 220500})]
-TRANSCRIBERS = [("muscriptor_small", "guitar"), ("muscriptor_medium", "guitar"),
-                ("muscriptor_large", "guitar"), ("basic_pitch", "guitar"), ("adtof", "drums")]
+TRANSCRIBERS = [("muscriptor_medium", "guitar"), ("basic_pitch", "guitar"), ("adtof", "drums")]
 
 
 def main() -> None:
@@ -82,7 +81,7 @@ def main() -> None:
             notes = tr.transcribe(stems[family], audio.sr, family)
             entry.update(ok=True, notes=len(notes), sha256=tr.model_sha256, **(tr.last_run or {}))
         except TranscriberUnavailable as exc:
-            entry.update(ok=False, unavailable=str(exc).splitlines()[0])
+            entry.update(ok=None, skipped=str(exc).splitlines()[0])  # not a failure
         except Exception as exc:  # noqa: BLE001
             entry.update(ok=False, error=f"{type(exc).__name__}: {str(exc)[:300]}")
         report["transcribers"].append(entry)

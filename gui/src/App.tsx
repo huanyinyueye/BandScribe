@@ -317,13 +317,10 @@ function SettingsPage({ info, config, setConfig, running, onStart }: {
                 .map((m) => <option key={m.id} value={m.id}>{label(m.id)}</option>)}
             </select>
           </label>
-          <label className="field">MuScriptor 模型大小
-            <select value={mus} onChange={(e) => setMus(e.target.value)}>
-              <option value="">不使用（只用 Basic Pitch / ADTOF）</option>
-              <option value="muscriptor_small">small（103M）</option>
-              <option value="muscriptor_medium">medium（307M，預設）</option>
-              <option value="muscriptor_large">large（1.4B，需較多 VRAM）</option>
-            </select>
+          <label className="check" style={{ alignSelf: 'end' }}>
+            <input type="checkbox" checked={!!mus}
+              onChange={(e) => setMus(e.target.checked ? 'muscriptor_medium' : '')} />
+            使用 MuScriptor medium（關閉則只用 Basic Pitch / ADTOF）
           </label>
           <label className="check" style={{ alignSelf: 'end' }}>
             <input type="checkbox" checked={!!config.mix_vote} disabled={!mus}
@@ -331,7 +328,7 @@ function SettingsPage({ info, config, setConfig, running, onStart }: {
             以原始混音轉譜做樂器歸屬投票
           </label>
         </div>
-        <p className="small muted">MuScriptor 權重需在 Hugging Face 逐一接受授權；無法取得時該模型會被略過並在結果中註明。</p>
+        <p className="small muted">MuScriptor 權重需在 Hugging Face 接受授權；無法取得時會被略過並在結果中註明。</p>
       </div>
       <div className="panel">
         <h3 style={{ marginTop: 0 }}>樂器與調弦</h3>

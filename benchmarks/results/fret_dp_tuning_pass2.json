@@ -1,0 +1,297 @@
+{
+ "default": {
+  "max_span": 5,
+  "max_fret": 24,
+  "open_bonus": 0.5,
+  "high_fret_weight": 0.05,
+  "span_weight": 0.6,
+  "move_weight": 1.0,
+  "string_jump_weight": 0.15,
+  "pause_reset": 1.0
+ },
+ "default_train": 0.6515959004392387,
+ "default_test": 0.6009320059309469,
+ "best": {
+  "max_span": 5,
+  "max_fret": 24,
+  "open_bonus": -0.25,
+  "high_fret_weight": 0.02,
+  "span_weight": 1.0,
+  "move_weight": 0.5,
+  "string_jump_weight": 0.15,
+  "pause_reset": 1.0
+ },
+ "best_train": 0.7042459736456809,
+ "best_test": 0.6532161265268658,
+ "grid": {
+  "open_bonus": [
+   -0.25,
+   0.0
+  ],
+  "high_fret_weight": [
+   0.01,
+   0.02,
+   0.03
+  ],
+  "span_weight": [
+   1.0,
+   1.5,
+   2.0,
+   3.0
+  ],
+  "move_weight": [
+   0.1,
+   0.25,
+   0.5
+  ],
+  "string_jump_weight": [
+   0.1,
+   0.15,
+   0.3
+  ]
+ },
+ "rows": [
+  {
+   "open_bonus": -0.25,
+   "high_fret_weight": 0.02,
+   "span_weight": 1.0,
+   "move_weight": 0.5,
+   "string_jump_weight": 0.15,
+   "train": 0.7042459736456809
+  },
+  {
+   "open_bonus": -0.25,
+   "high_fret_weight": 0.02,
+   "span_weight": 1.0,
+   "move_weight": 0.5,
+   "string_jump_weight": 0.1,
+   "train": 0.7025768667642752
+  },
+  {
+   "open_bonus": -0.25,
+   "high_fret_weight": 0.02,
+   "span_weight": 1.0,
+   "move_weight": 0.5,
+   "string_jump_weight": 0.3,
+   "train": 0.7000878477306003
+  },
+  {
+   "open_bonus": -0.25,
+   "high_fret_weight": 0.02,
+   "span_weight": 1.5,
+   "move_weight": 0.5,
+   "string_jump_weight": 0.1,
+   "train": 0.6989165446559297
+  },
+  {
+   "open_bonus": -0.25,
+   "high_fret_weight": 0.02,
+   "span_weight": 1.5,
+   "move_weight": 0.5,
+   "string_jump_weight": 0.15,
+   "train": 0.6985944363103953
+  },
+  {
+   "open_bonus": -0.25,
+   "high_fret_weight": 0.01,
+   "span_weight": 1.0,
+   "move_weight": 0.5,
+   "string_jump_weight": 0.15,
+   "train": 0.698389458272328
+  },
+  {
+   "open_bonus": -0.25,
+   "high_fret_weight": 0.01,
+   "span_weight": 1.0,
+   "move_weight": 0.5,
+   "string_jump_weight": 0.1,
+   "train": 0.6962811127379209
+  },
+  {
+   "open_bonus": -0.25,
+   "high_fret_weight": 0.01,
+   "span_weight": 1.0,
+   "move_weight": 0.25,
+   "string_jump_weight": 0.1,
+   "train": 0.695285505124451
+  },
+  {
+   "open_bonus": -0.25,
+   "high_fret_weight": 0.01,
+   "span_weight": 1.0,
+   "move_weight": 0.5,
+   "string_jump_weight": 0.3,
+   "train": 0.6952269399707174
+  },
+  {
+   "open_bonus": -0.25,
+   "high_fret_weight": 0.02,
+   "span_weight": 2.0,
+   "move_weight": 0.5,
+   "string_jump_weight": 0.15,
+   "train": 0.6945827232796487
+  },
+  {
+   "open_bonus": -0.25,
+   "high_fret_weight": 0.02,
+   "span_weight": 1.5,
+   "move_weight": 0.5,
+   "string_jump_weight": 0.3,
+   "train": 0.6940849194729136
+  },
+  {
+   "open_bonus": 0.0,
+   "high_fret_weight": 0.02,
+   "span_weight": 1.0,
+   "move_weight": 0.5,
+   "string_jump_weight": 0.15,
+   "train": 0.6935578330893118
+  },
+  {
+   "open_bonus": -0.25,
+   "high_fret_weight": 0.03,
+   "span_weight": 1.5,
+   "move_weight": 0.5,
+   "string_jump_weight": 0.15,
+   "train": 0.6930893118594437
+  },
+  {
+   "open_bonus": -0.25,
+   "high_fret_weight": 0.01,
+   "span_weight": 1.0,
+   "move_weight": 0.25,
+   "string_jump_weight": 0.15,
+   "train": 0.6930307467057101
+  },
+  {
+   "open_bonus": -0.25,
+   "high_fret_weight": 0.02,
+   "span_weight": 2.0,
+   "move_weight": 0.5,
+   "string_jump_weight": 0.1,
+   "train": 0.6930307467057101
+  },
+  {
+   "open_bonus": -0.25,
+   "high_fret_weight": 0.03,
+   "span_weight": 1.5,
+   "move_weight": 0.5,
+   "string_jump_weight": 0.1,
+   "train": 0.6925036603221083
+  },
+  {
+   "open_bonus": -0.25,
+   "high_fret_weight": 0.01,
+   "span_weight": 1.5,
+   "move_weight": 0.5,
+   "string_jump_weight": 0.1,
+   "train": 0.6920351390922401
+  },
+  {
+   "open_bonus": -0.25,
+   "high_fret_weight": 0.03,
+   "span_weight": 1.0,
+   "move_weight": 0.5,
+   "string_jump_weight": 0.1,
+   "train": 0.6920058565153734
+  },
+  {
+   "open_bonus": -0.25,
+   "high_fret_weight": 0.01,
+   "span_weight": 1.5,
+   "move_weight": 0.5,
+   "string_jump_weight": 0.15,
+   "train": 0.6918887262079063
+  },
+  {
+   "open_bonus": -0.25,
+   "high_fret_weight": 0.02,
+   "span_weight": 1.0,
+   "move_weight": 0.25,
+   "string_jump_weight": 0.1,
+   "train": 0.6913323572474378
+  },
+  {
+   "open_bonus": -0.25,
+   "high_fret_weight": 0.03,
+   "span_weight": 2.0,
+   "move_weight": 0.5,
+   "string_jump_weight": 0.3,
+   "train": 0.6909516837481698
+  },
+  {
+   "open_bonus": -0.25,
+   "high_fret_weight": 0.03,
+   "span_weight": 1.5,
+   "move_weight": 0.5,
+   "string_jump_weight": 0.3,
+   "train": 0.6908638360175695
+  },
+  {
+   "open_bonus": 0.0,
+   "high_fret_weight": 0.02,
+   "span_weight": 1.0,
+   "move_weight": 0.5,
+   "string_jump_weight": 0.1,
+   "train": 0.6907174231332357
+  },
+  {
+   "open_bonus": -0.25,
+   "high_fret_weight": 0.02,
+   "span_weight": 1.0,
+   "move_weight": 0.25,
+   "string_jump_weight": 0.15,
+   "train": 0.6903953147877013
+  },
+  {
+   "open_bonus": -0.25,
+   "high_fret_weight": 0.03,
+   "span_weight": 2.0,
+   "move_weight": 0.5,
+   "string_jump_weight": 0.15,
+   "train": 0.6901024890190337
+  },
+  {
+   "open_bonus": 0.0,
+   "high_fret_weight": 0.02,
+   "span_weight": 1.5,
+   "move_weight": 0.5,
+   "string_jump_weight": 0.15,
+   "train": 0.6896046852122987
+  },
+  {
+   "open_bonus": -0.25,
+   "high_fret_weight": 0.03,
+   "span_weight": 1.0,
+   "move_weight": 0.5,
+   "string_jump_weight": 0.15,
+   "train": 0.6895754026354319
+  },
+  {
+   "open_bonus": -0.25,
+   "high_fret_weight": 0.01,
+   "span_weight": 1.5,
+   "move_weight": 0.5,
+   "string_jump_weight": 0.3,
+   "train": 0.6894875549048316
+  },
+  {
+   "open_bonus": -0.25,
+   "high_fret_weight": 0.02,
+   "span_weight": 2.0,
+   "move_weight": 0.5,
+   "string_jump_weight": 0.3,
+   "train": 0.6894582723279649
+  },
+  {
+   "open_bonus": -0.25,
+   "high_fret_weight": 0.03,
+   "span_weight": 2.0,
+   "move_weight": 0.5,
+   "string_jump_weight": 0.1,
+   "train": 0.6892240117130307
+  }
+ ],
+ "train_tracks": 180,
+ "test_tracks": 180
+}

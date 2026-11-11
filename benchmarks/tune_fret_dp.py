@@ -51,6 +51,8 @@ def main() -> None:
         "move_weight": [0.5, 1.0, 2.0, 4.0],
         "string_jump_weight": [0.0, 0.15, 0.5],
     }
+    if len(sys.argv) > 1:  # e.g. a JSON grid that extends the first pass past its edges
+        grid = json.loads(sys.argv[1])
     best, best_acc = base, result["default_train"]
     rows = []
     keys = list(grid)

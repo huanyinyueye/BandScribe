@@ -1,0 +1,82 @@
+{
+ "default": {
+  "max_span": 5,
+  "max_fret": 24,
+  "open_bonus": 0.5,
+  "high_fret_weight": 0.05,
+  "span_weight": 0.6,
+  "move_weight": 1.0,
+  "string_jump_weight": 0.15,
+  "pause_reset": 1.0
+ },
+ "default_train": 0.6515959004392387,
+ "default_test": 0.6009320059309469,
+ "best": {
+  "max_span": 5,
+  "max_fret": 24,
+  "open_bonus": -0.75,
+  "high_fret_weight": 0.02,
+  "span_weight": 1.0,
+  "move_weight": 0.5,
+  "string_jump_weight": 0.15,
+  "pause_reset": 1.0
+ },
+ "best_train": 0.7116251830161054,
+ "best_test": 0.673021252559486,
+ "grid": {
+  "open_bonus": [
+   -1.0,
+   -0.75,
+   -0.5,
+   -0.25
+  ],
+  "high_fret_weight": [
+   0.02
+  ],
+  "span_weight": [
+   1.0
+  ],
+  "move_weight": [
+   0.5
+  ],
+  "string_jump_weight": [
+   0.15
+  ]
+ },
+ "rows": [
+  {
+   "open_bonus": -0.75,
+   "high_fret_weight": 0.02,
+   "span_weight": 1.0,
+   "move_weight": 0.5,
+   "string_jump_weight": 0.15,
+   "train": 0.7116251830161054
+  },
+  {
+   "open_bonus": -0.5,
+   "high_fret_weight": 0.02,
+   "span_weight": 1.0,
+   "move_weight": 0.5,
+   "string_jump_weight": 0.15,
+   "train": 0.7103660322108346
+  },
+  {
+   "open_bonus": -1.0,
+   "high_fret_weight": 0.02,
+   "span_weight": 1.0,
+   "move_weight": 0.5,
+   "string_jump_weight": 0.15,
+   "train": 0.7078184480234261
+  },
+  {
+   "open_bonus": -0.25,
+   "high_fret_weight": 0.02,
+   "span_weight": 1.0,
+   "move_weight": 0.5,
+   "string_jump_weight": 0.15,
+   "train": 0.7042459736456809
+  }
+ ],
+ "train_tracks": 180,
+ "test_tracks": 180
+}

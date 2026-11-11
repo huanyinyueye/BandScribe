@@ -1,0 +1,298 @@
+{
+ "default": {
+  "max_span": 5,
+  "max_fret": 24,
+  "open_bonus": 0.5,
+  "high_fret_weight": 0.05,
+  "span_weight": 0.6,
+  "move_weight": 1.0,
+  "string_jump_weight": 0.15,
+  "pause_reset": 1.0
+ },
+ "default_train": 0.6515959004392387,
+ "default_test": 0.6009320059309469,
+ "best": {
+  "max_span": 5,
+  "max_fret": 24,
+  "open_bonus": 0.0,
+  "high_fret_weight": 0.02,
+  "span_weight": 1.0,
+  "move_weight": 0.5,
+  "string_jump_weight": 0.15,
+  "pause_reset": 1.0
+ },
+ "best_train": 0.6935578330893118,
+ "best_test": 0.6342229753583281,
+ "grid": {
+  "open_bonus": [
+   0.0,
+   0.25,
+   0.5
+  ],
+  "high_fret_weight": [
+   0.0,
+   0.02,
+   0.05
+  ],
+  "span_weight": [
+   0.3,
+   0.6,
+   1.0
+  ],
+  "move_weight": [
+   0.5,
+   1.0,
+   2.0,
+   4.0
+  ],
+  "string_jump_weight": [
+   0.0,
+   0.15,
+   0.5
+  ]
+ },
+ "rows": [
+  {
+   "open_bonus": 0.0,
+   "high_fret_weight": 0.02,
+   "span_weight": 1.0,
+   "move_weight": 0.5,
+   "string_jump_weight": 0.15,
+   "train": 0.6935578330893118
+  },
+  {
+   "open_bonus": 0.0,
+   "high_fret_weight": 0.02,
+   "span_weight": 1.0,
+   "move_weight": 1.0,
+   "string_jump_weight": 0.15,
+   "train": 0.6893411420204978
+  },
+  {
+   "open_bonus": 0.0,
+   "high_fret_weight": 0.02,
+   "span_weight": 1.0,
+   "move_weight": 1.0,
+   "string_jump_weight": 0.0,
+   "train": 0.6892240117130307
+  },
+  {
+   "open_bonus": 0.0,
+   "high_fret_weight": 0.02,
+   "span_weight": 1.0,
+   "move_weight": 1.0,
+   "string_jump_weight": 0.5,
+   "train": 0.688199121522694
+  },
+  {
+   "open_bonus": 0.25,
+   "high_fret_weight": 0.02,
+   "span_weight": 1.0,
+   "move_weight": 0.5,
+   "string_jump_weight": 0.15,
+   "train": 0.6873792093704246
+  },
+  {
+   "open_bonus": 0.0,
+   "high_fret_weight": 0.02,
+   "span_weight": 1.0,
+   "move_weight": 0.5,
+   "string_jump_weight": 0.0,
+   "train": 0.6868521229868229
+  },
+  {
+   "open_bonus": 0.25,
+   "high_fret_weight": 0.02,
+   "span_weight": 1.0,
+   "move_weight": 1.0,
+   "string_jump_weight": 0.15,
+   "train": 0.6858857979502196
+  },
+  {
+   "open_bonus": 0.25,
+   "high_fret_weight": 0.02,
+   "span_weight": 1.0,
+   "move_weight": 1.0,
+   "string_jump_weight": 0.0,
+   "train": 0.6857979502196193
+  },
+  {
+   "open_bonus": 0.25,
+   "high_fret_weight": 0.02,
+   "span_weight": 1.0,
+   "move_weight": 1.0,
+   "string_jump_weight": 0.5,
+   "train": 0.6856515373352855
+  },
+  {
+   "open_bonus": 0.0,
+   "high_fret_weight": 0.02,
+   "span_weight": 1.0,
+   "move_weight": 0.5,
+   "string_jump_weight": 0.5,
+   "train": 0.6841874084919473
+  },
+  {
+   "open_bonus": 0.25,
+   "high_fret_weight": 0.02,
+   "span_weight": 1.0,
+   "move_weight": 0.5,
+   "string_jump_weight": 0.0,
+   "train": 0.6826354319180088
+  },
+  {
+   "open_bonus": 0.0,
+   "high_fret_weight": 0.02,
+   "span_weight": 0.6,
+   "move_weight": 0.5,
+   "string_jump_weight": 0.15,
+   "train": 0.68199121522694
+  },
+  {
+   "open_bonus": 0.5,
+   "high_fret_weight": 0.02,
+   "span_weight": 1.0,
+   "move_weight": 1.0,
+   "string_jump_weight": 0.0,
+   "train": 0.6800292825768668
+  },
+  {
+   "open_bonus": 0.5,
+   "high_fret_weight": 0.02,
+   "span_weight": 1.0,
+   "move_weight": 1.0,
+   "string_jump_weight": 0.5,
+   "train": 0.6795900439238654
+  },
+  {
+   "open_bonus": 0.5,
+   "high_fret_weight": 0.02,
+   "span_weight": 1.0,
+   "move_weight": 1.0,
+   "string_jump_weight": 0.15,
+   "train": 0.6794436310395314
+  },
+  {
+   "open_bonus": 0.0,
+   "high_fret_weight": 0.02,
+   "span_weight": 1.0,
+   "move_weight": 2.0,
+   "string_jump_weight": 0.5,
+   "train": 0.6794143484626647
+  },
+  {
+   "open_bonus": 0.0,
+   "high_fret_weight": 0.02,
+   "span_weight": 1.0,
+   "move_weight": 2.0,
+   "string_jump_weight": 0.15,
+   "train": 0.6780380673499268
+  },
+  {
+   "open_bonus": 0.5,
+   "high_fret_weight": 0.02,
+   "span_weight": 1.0,
+   "move_weight": 0.5,
+   "string_jump_weight": 0.15,
+   "train": 0.6778623718887262
+  },
+  {
+   "open_bonus": 0.25,
+   "high_fret_weight": 0.02,
+   "span_weight": 1.0,
+   "move_weight": 0.5,
+   "string_jump_weight": 0.5,
+   "train": 0.6776866764275257
+  },
+  {
+   "open_bonus": 0.0,
+   "high_fret_weight": 0.02,
+   "span_weight": 0.6,
+   "move_weight": 0.5,
+   "string_jump_weight": 0.0,
+   "train": 0.6761054172767204
+  },
+  {
+   "open_bonus": 0.25,
+   "high_fret_weight": 0.02,
+   "span_weight": 1.0,
+   "move_weight": 2.0,
+   "string_jump_weight": 0.5,
+   "train": 0.6759590043923865
+  },
+  {
+   "open_bonus": 0.0,
+   "high_fret_weight": 0.02,
+   "span_weight": 0.6,
+   "move_weight": 0.5,
+   "string_jump_weight": 0.5,
+   "train": 0.6755197657393851
+  },
+  {
+   "open_bonus": 0.0,
+   "high_fret_weight": 0.02,
+   "span_weight": 1.0,
+   "move_weight": 2.0,
+   "string_jump_weight": 0.0,
+   "train": 0.674904831625183
+  },
+  {
+   "open_bonus": 0.25,
+   "high_fret_weight": 0.02,
+   "span_weight": 0.6,
+   "move_weight": 0.5,
+   "string_jump_weight": 0.15,
+   "train": 0.6746412884333821
+  },
+  {
+   "open_bonus": 0.0,
+   "high_fret_weight": 0.02,
+   "span_weight": 0.6,
+   "move_weight": 1.0,
+   "string_jump_weight": 0.15,
+   "train": 0.674407027818448
+  },
+  {
+   "open_bonus": 0.5,
+   "high_fret_weight": 0.02,
+   "span_weight": 1.0,
+   "move_weight": 0.5,
+   "string_jump_weight": 0.0,
+   "train": 0.6743777452415812
+  },
+  {
+   "open_bonus": 0.25,
+   "high_fret_weight": 0.02,
+   "span_weight": 1.0,
+   "move_weight": 2.0,
+   "string_jump_weight": 0.15,
+   "train": 0.6731478770131771
+  },
+  {
+   "open_bonus": 0.0,
+   "high_fret_weight": 0.02,
+   "span_weight": 0.6,
+   "move_weight": 1.0,
+   "string_jump_weight": 0.0,
+   "train": 0.6728550512445095
+  },
+  {
+   "open_bonus": 0.25,
+   "high_fret_weight": 0.02,
+   "span_weight": 1.0,
+   "move_weight": 2.0,
+   "string_jump_weight": 0.0,
+   "train": 0.6727672035139092
+  },
+  {
+   "open_bonus": 0.0,
+   "high_fret_weight": 0.05,
+   "span_weight": 1.0,
+   "move_weight": 2.0,
+   "string_jump_weight": 0.5,
+   "train": 0.6722693997071743
+  }
+ ],
+ "train_tracks": 180,
+ "test_tracks": 180
+}

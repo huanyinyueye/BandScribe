@@ -27,6 +27,17 @@ thresholds:
 
 tab:
   max_span: 5
+  # DP fret-assignment cost weights for guitar (bandscribe.tab.fret_dp.FretOptions).
+  # Tuned on GuitarSet players 00-02 with ground-truth pitches; held-out players 03-05:
+  # string/fret accuracy 60.1% with the code defaults -> 67.3% with these values
+  # (benchmarks/tune_fret_dp.py, results/fret_dp_tuning*.json, 2026-11-12).
+  # Bass has no labelled data here and keeps the code defaults.
+  guitar_dp:
+    open_bonus: -0.75            # negative = small penalty for open strings
+    high_fret_weight: 0.02
+    span_weight: 1.0
+    move_weight: 0.5
+    string_jump_weight: 0.15
   guitar_tuning: auto            # or a key from bandscribe.tab.tunings.TUNINGS
   bass_tuning: auto
 

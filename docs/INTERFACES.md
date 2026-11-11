@@ -155,7 +155,12 @@ summary, ...)`, `read_gp(path)`, `export_gp5.export_gp5`, `export_midi.export_mi
 ## 3. QA hook
 
 Before export the pipeline calls `bandscribe.qa.run_checks(score, context) -> dict`.
-The default in `bandscribe/qa/__init__.py` checks nothing; the package belongs to the QA owner.
+The rules live in `bandscribe/qa/` (owned by the QA session). The result has at least `status`
+(pass / warn / fail), `rules` and `tracks`; it never blocks, removes notes that break a hard
+rule by returning a cleaned `score`, and writes `report.html` into `out_dir`.
+Rule R1 identifies promoted guitar notes by `(round(onset, 3), pitch)` of the entries in
+`attribution.promoted` with `to == "guitar"`: that log format (`{"to", "onset", "pitch"}`,
+onset rounded to 3 decimals) is part of this interface.
 
 `context` keys: `config` (PipelineConfig), `out_dir` (Path), `notes` (dict family ->
 list[Note], final), `activity` (dict stem -> StemActivity), `confidence` (dict stem ->

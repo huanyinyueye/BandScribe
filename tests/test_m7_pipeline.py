@@ -133,9 +133,12 @@ def test_sections_found_at_a_clear_change():
 
 # --- QA hook and note JSON -----------------------------------------------------------------
 
-def test_default_qa_hook_is_a_noop():
+def test_qa_hook_contract():
+    """The pipeline only relies on this much of the QA result (docs/INTERFACES.md section 3)."""
     result = qa.run_checks(Score("x", [], []), {})
-    assert result["issues"] == [] and json.dumps(result)
+    assert {"status", "rules", "tracks"} <= set(result)
+    result.pop("score", None)  # the only non-JSON key, interpreted by the pipeline
+    assert json.dumps(result)
 
 
 def test_notes_json_round_trip():
@@ -197,7 +200,8 @@ def test_pipeline_end_to_end_output_structure(tmp_path):
     assert len(manifest["models"]["bs_roformer_sw"]["files_sha256"]["BS-Rofo-SW-Fixed.ckpt"]) == 64
     assert manifest["models"]["beat_this"]["sha256"] and manifest["models"]["basic_pitch"]["sha256"]
     assert all(r["leaked_bytes"] == 0 for r in manifest["vram"])
-    assert manifest["qa"]["status"] == "not-implemented"
+    assert manifest["qa"]["status"] in ("pass", "warn", "fail")
+    assert json.loads((out / "qa.json").read_text(encoding="utf-8"))["rules"] == manifest["qa"]["rules"]
 
     stems = json.loads((out / "stems" / "stems.json").read_text(encoding="utf-8"))["stems"]
     assert set(stems) == {"vocals", "drums", "bass", "guitar", "piano", "other"}

@@ -88,8 +88,15 @@ for a batch.
   `bandscribe.config.load_defaults(profile)` and `PipelineConfig.from_defaults(profile,
   **overrides)`. Keys: `separation.primary|secondary|blend_weights`,
   `transcription.pitched|drums|mix_vote`, `beats`, `thresholds.low_confidence|onset_tolerance|
-  drum_onset_tolerance`, `tab.max_span|guitar_tuning|bass_tuning`, `instruments`,
+  drum_onset_tolerance`, `tab.max_span|guitar_dp|guitar_tuning|bass_tuning`, `instruments`,
   `profiles.<name>` (deep-merged overrides). `schema_version` must stay 1.
+- `tab.guitar_dp` sets cost weights of the guitar fret-assignment DP
+  (`bandscribe.tab.fret_dp.FretOptions`): `open_bonus` (subtracted per open string, so a
+  negative value is a penalty), `high_fret_weight`, `span_weight`, `move_weight`,
+  `string_jump_weight`, `pause_reset`. Missing keys keep the code defaults; unknown keys are a
+  `ConfigError`. It becomes `PipelineConfig.guitar_dp` and can be overridden per run. Bass
+  always uses the code defaults. The weights used are recorded in `score.json` under
+  `meta.tab.<family>.dp_weights`.
 
 ## 2. Pipeline
 

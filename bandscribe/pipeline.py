@@ -343,7 +343,11 @@ def _assign_tab(run: _Run, final: dict[str, list[Note]], log) -> dict[str, Any]:
                 raise ValueError(f"unknown {family} tuning {setting!r}")
             tuning = TUNINGS[setting]
             info[family] = {"tuning": tuning.key, "name": tuning.name, "auto": False}
-        res = DPFretAssigner(FretOptions(max_span=cfg.max_span)).assign(final[family], tuning)
+        # Tuned weights apply to guitar only; bass has no labelled data and keeps the defaults.
+        weights = cfg.guitar_dp if family == "guitar" else {}
+        options = FretOptions(max_span=cfg.max_span, **weights)
+        res = DPFretAssigner(options).assign(final[family], tuning)
+        info[family]["dp_weights"] = dict(weights) or "code defaults"
         for n in res.unplaced:
             log.remove(n, f"unplayable in {tuning.name} (no string/fret position)")
         final[family] = res.notes

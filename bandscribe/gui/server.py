@@ -37,7 +37,8 @@ STAGE_WEIGHT = {"load": 0.01, "beats": 0.03, "separate": 0.30, "attribute": 0.03
 # Config fields the GUI may set.
 EDITABLE = {"profile", "separator_primary", "separator_secondary", "pitched_transcribers",
             "drum_transcribers", "mix_vote", "low_confidence", "strict", "guitar_tuning",
-            "bass_tuning", "instruments", "exports", "title", "max_span", "stem_overrides"}
+            "bass_tuning", "instruments", "exports", "title", "max_span", "guitar_dp",
+            "stem_overrides"}
 
 
 @dataclass

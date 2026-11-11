@@ -275,3 +275,42 @@ def test_pipeline_on_real_band_audio(tmp_path):
     score = Score.load(out / "score.json")
     guitar = next(t for t in score.tracks if t.family == "guitar")
     assert guitar.kind == "tab" and all(n.string and n.fret is not None for n in guitar.notes)
+
+
+def test_guitar_dp_weights_come_from_defaults_and_can_be_overridden(tmp_path):
+    from bandscribe.tab.fret_dp import FretOptions
+
+    cfg = PipelineConfig.from_defaults()
+    assert cfg.guitar_dp == load_defaults()["tab"]["guitar_dp"]
+    assert cfg.guitar_dp["open_bonus"] < 0  # tuned value: open strings cost a little
+    opts = FretOptions(max_span=cfg.max_span, **cfg.guitar_dp)
+    assert opts.open_bonus == cfg.guitar_dp["open_bonus"] and opts.max_span == cfg.max_span
+    over = PipelineConfig.from_defaults(guitar_dp={"open_bonus": 0.5})
+    assert over.guitar_dp == {"open_bonus": 0.5}
+    with pytest.raises(ConfigError, match="unknown guitar_dp"):
+        PipelineConfig.from_defaults(guitar_dp={"max_fret": 12})
+    with pytest.raises(ConfigError, match="must be a number"):
+        PipelineConfig.from_defaults(guitar_dp={"open_bonus": "low"})
+    # A defaults file without the key keeps the code defaults.
+    raw = yaml.safe_load(DEFAULTS_PATH.read_text(encoding="utf-8"))
+    raw["tab"].pop("guitar_dp")
+    p = tmp_path / "defaults.yaml"
+    p.write_text(yaml.safe_dump(raw), encoding="utf-8")
+    assert PipelineConfig.from_defaults(defaults_path=p).guitar_dp == {}
+
+
+def test_tab_stage_uses_tuned_weights_for_guitar_only(tmp_path):
+    from bandscribe.attribution.instrument_id import AttributionLog
+    from bandscribe.pipeline import _assign_tab, _Run
+
+    def riff(inst, low):
+        return [Note(i * 0.25, i * 0.25 + 0.2, low + 24, instrument=inst) for i in range(8)]
+
+    cfg = PipelineConfig.from_defaults(guitar_dp={"open_bonus": -0.75, "high_fret_weight": 0.0})
+    run = _Run(tmp_path / "x.wav", cfg, tmp_path, None, None)
+    final = {"guitar": riff("guitar", 40), "bass": riff("bass", 19)}  # E4 and G2: open strings
+    info = _assign_tab(run, final, AttributionLog())
+    assert info["guitar"]["dp_weights"] == cfg.guitar_dp
+    assert info["bass"]["dp_weights"] == "code defaults"
+    assert all(n.fret > 0 for n in final["guitar"])   # penalty: avoids the open E string
+    assert all(n.fret == 0 for n in final["bass"])    # bass keeps the open-string bonus

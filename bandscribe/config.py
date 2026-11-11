@@ -11,6 +11,9 @@ import yaml
 
 DEFAULTS_PATH = Path(__file__).parent / "models" / "defaults.yaml"
 FAMILIES = ("vocals", "drums", "bass", "guitar", "piano", "other")
+# FretOptions fields that tab.guitar_dp may set (max_span has its own key).
+GUITAR_DP_KEYS = {"open_bonus", "high_fret_weight", "span_weight", "move_weight",
+                  "string_jump_weight", "pause_reset"}
 
 
 class ConfigError(ValueError):
@@ -54,6 +57,9 @@ class PipelineConfig:
     drum_onset_tolerance: float = 0.03
     strict: bool = False  # remove low-confidence notes instead of marking them
     max_span: int = 5
+    # Cost weights of the guitar fret-assignment DP (FretOptions fields); empty = code defaults.
+    # Bass always uses the code defaults.
+    guitar_dp: dict[str, float] = field(default_factory=dict)
     guitar_tuning: str = "auto"
     bass_tuning: str = "auto"
     instruments: list[str] = field(default_factory=lambda: list(FAMILIES))
@@ -77,7 +83,8 @@ class PipelineConfig:
             low_confidence=float(th["low_confidence"]),
             onset_tolerance=float(th["onset_tolerance"]),
             drum_onset_tolerance=float(th["drum_onset_tolerance"]),
-            max_span=int(tab["max_span"]), guitar_tuning=tab["guitar_tuning"],
+            max_span=int(tab["max_span"]), guitar_dp=dict(tab.get("guitar_dp") or {}),
+            guitar_tuning=tab["guitar_tuning"],
             bass_tuning=tab["bass_tuning"], instruments=list(d["instruments"]))
         for k, v in overrides.items():
             if not hasattr(cfg, k):
@@ -96,6 +103,13 @@ class PipelineConfig:
         bad = set(self.exports) - {"gp", "gp5", "midi", "musicxml"}
         if bad:
             raise ConfigError(f"unknown export formats {sorted(bad)}")
+        unknown = set(self.guitar_dp) - GUITAR_DP_KEYS
+        if unknown:
+            raise ConfigError(f"unknown guitar_dp weights {sorted(unknown)}; "
+                              f"allowed: {sorted(GUITAR_DP_KEYS)}")
+        for key, value in self.guitar_dp.items():
+            if isinstance(value, bool) or not isinstance(value, int | float):
+                raise ConfigError(f"guitar_dp.{key} must be a number")
         if not self.pitched_transcribers:
             raise ConfigError("at least one pitched transcriber is required")
 

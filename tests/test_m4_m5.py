@@ -350,3 +350,19 @@ def test_limb_overload_flagged():
     assert all("limb-overload" in n.flags for n in flag_limb_overload(five))
     three_hands = [D(3.0, p) for p in (38, 42, 49)]
     assert all("limb-overload" in n.flags for n in flag_limb_overload(three_hands))
+
+
+def test_negative_open_bonus_is_a_penalty_not_clamped():
+    from bandscribe.tab.fret_dp import _fingering_cost
+
+    open_e = ((0, 0),)        # open high E
+    fretted = ((1, 5),)       # same pitch, 5th fret on the B string
+    bonus = FretOptions(open_bonus=0.5, high_fret_weight=0.0)
+    penalty = FretOptions(open_bonus=-0.75, high_fret_weight=0.0)
+    assert _fingering_cost(open_e, bonus) == pytest.approx(-0.5)
+    assert _fingering_cost(open_e, penalty) == pytest.approx(0.75)   # cost added per open string
+    assert _fingering_cost(((0, 0), (1, 0)), penalty) == pytest.approx(1.5)
+    assert _fingering_cost(fretted, penalty) == _fingering_cost(fretted, bonus) == 0.0
+    # The sign changes the chosen position: E4 open with a bonus, fretted with a penalty.
+    assert DPFretAssigner(bonus).assign([N(0.0, 64)], STD).notes[0].fret == 0
+    assert DPFretAssigner(penalty).assign([N(0.0, 64)], STD).notes[0].fret == 5

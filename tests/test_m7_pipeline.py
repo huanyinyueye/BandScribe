@@ -25,7 +25,7 @@ SR = 44100
 def test_defaults_file_matches_spec_assumptions():
     d = load_defaults("quality")
     assert d["separation"]["primary"] == "bs_roformer_sw"
-    assert d["separation"]["secondary"] == "scnet_xl_ihf"
+    assert d["separation"]["secondary"] == "subroformer"  # measured, BENCHMARKS.md
     assert d["transcription"]["pitched"] == ["muscriptor_medium", "basic_pitch"]
     assert d["transcription"]["drums"] == ["muscriptor_medium", "adtof"]
     assert d["thresholds"]["low_confidence"] == 0.5
@@ -34,7 +34,7 @@ def test_defaults_file_matches_spec_assumptions():
 def test_profiles_override_defaults():
     q = PipelineConfig.from_defaults("quality")
     b = PipelineConfig.from_defaults("balanced")
-    assert q.separator_secondary == "scnet_xl_ihf" and q.mix_vote == "muscriptor_medium"
+    assert q.separator_secondary == "subroformer" and q.mix_vote == "muscriptor_medium"
     assert b.separator_secondary is None and b.mix_vote is None
     assert b.separator_primary == q.separator_primary
 

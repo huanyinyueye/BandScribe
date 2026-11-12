@@ -8,9 +8,12 @@ schema_version: 1
 
 separation:
   primary: bs_roformer_sw        # 6 stems; the only source of guitar / piano stems
-  secondary: scnet_xl_ihf        # 4 stems; cross-check for vocals / drums / bass (null = off)
-  # Weight of the secondary model when blending a shared stem (0 = primary only).
-  blend_weights: {vocals: 0.5, drums: 0.5, bass: 0.5}
+  secondary: subroformer         # 4 stems; cross-check for vocals / drums / bass (null = off)
+  # Weight of the secondary model when blending a shared stem (0 = primary audio only; the
+  # secondary still feeds the agreement confidence). From MUSDB18-HQ test, 50 tracks
+  # (BENCHMARKS.md, 2026-11-12): vocals 12.33 -> 12.83 dB, drums 12.99 -> 13.11 dB; every
+  # bass blend was worse than BS-RoFormer SW alone (11.07 dB).
+  blend_weights: {vocals: 0.5, drums: 0.25, bass: 0.0}
 
 transcription:
   # Tried in order; unavailable backends are skipped and recorded in the manifest.

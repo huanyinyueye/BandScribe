@@ -1,0 +1,113 @@
+{
+ "models": {
+  "bs_roformer_sw": {
+   "tracks": 50,
+   "sdr": {
+    "vocals": 12.333692764951998,
+    "drums": 12.989541961488131,
+    "bass": 11.073007276584253,
+    "other": 9.102008117215053,
+    "avg": 11.374562530059858
+   },
+   "peak_vram_gb": 3.9676527976989746,
+   "s_per_audio_minute": 5.045750661277016,
+   "oom_retries": 0,
+   "devices": [
+    "cuda"
+   ]
+  },
+  "htdemucs_6s": {
+   "tracks": 50,
+   "sdr": {
+    "vocals": 8.859146709859928,
+    "drums": 9.525570623425267,
+    "bass": 7.893371297000592,
+    "other": 5.461583550313247,
+    "avg": 7.934918045149758
+   },
+   "peak_vram_gb": 0.6058149337768555,
+   "s_per_audio_minute": 1.5268827979595572,
+   "oom_retries": 0,
+   "devices": [
+    "cuda"
+   ]
+  },
+  "scnet_xl_ihf": {
+   "tracks": 50,
+   "sdr": {
+    "vocals": 11.421901181605431,
+    "drums": 11.81558255865478,
+    "bass": 9.236064092576198,
+    "other": 7.882779594938557,
+    "avg": 10.089081856943741
+   },
+   "peak_vram_gb": 2.3775248527526855,
+   "s_per_audio_minute": 10.696353550133098,
+   "oom_retries": 0,
+   "devices": [
+    "cuda"
+   ]
+  },
+  "subroformer": {
+   "tracks": 50,
+   "sdr": {
+    "vocals": 12.501856908711162,
+    "drums": 11.920941867792529,
+    "bass": 8.054653615649158,
+    "other": 7.546856870788485,
+    "avg": 10.006077315735332
+   },
+   "peak_vram_gb": 1.6418371200561523,
+   "s_per_audio_minute": 15.062433969221901,
+   "oom_retries": 0,
+   "devices": [
+    "cuda"
+   ]
+  }
+ },
+ "ensembles": {
+  "bs_roformer_sw+scnet_xl_ihf": {
+   "tracks": 50,
+   "sdr_by_weight": {
+    "0.25": {
+     "vocals": 12.452607674547306,
+     "drums": 13.057793427151742,
+     "bass": 11.069213359240752
+    },
+    "0.5": {
+     "vocals": 12.314541727451287,
+     "drums": 12.845060279004878,
+     "bass": 10.673663389774534
+    },
+    "0.75": {
+     "vocals": 11.951899525266299,
+     "drums": 12.408817439077868,
+     "bass": 10.030963996949987
+    }
+   }
+  },
+  "bs_roformer_sw+subroformer": {
+   "tracks": 50,
+   "sdr_by_weight": {
+    "0.25": {
+     "vocals": 12.683833487773038,
+     "drums": 13.110205392279623,
+     "bass": 10.884322057943216
+    },
+    "0.5": {
+     "vocals": 12.833479985219203,
+     "drums": 12.943024610856924,
+     "bass": 10.125683149881743
+    },
+    "0.75": {
+     "vocals": 12.770091173643927,
+     "drums": 12.53525343901549,
+     "bass": 9.141284259447094
+    }
+   }
+  }
+ },
+ "dataset": "MUSDB18-HQ test, 50 tracks",
+ "metric": "global SDR (MSST 'SDR avg'), mean over tracks",
+ "wall_seconds": 8175.707006099998
+}

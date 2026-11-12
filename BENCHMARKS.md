@@ -27,10 +27,10 @@ its row below is filled in.
 
 | Model | Precision / chunk | Peak VRAM (GB) | s per audio minute | Status |
 |---|---|---|---|---|
-| BS-RoFormer SW | | | | not measured (M2) |
-| SCNet XL IHF | | | | not measured (M2) |
-| HTDemucs 6s | | | | not measured (M2) |
-| SubRoformer | | | | not measured (M3) |
+| BS-RoFormer SW | FP16, chunk 588800, batch 2 | 3.97 | 5.0 (MUSDB18-HQ test, 50 tracks) | measured |
+| SCNet XL IHF | FP16, chunk 485100, batch 2 | 2.38 | 10.7 (MUSDB18-HQ test) | measured |
+| HTDemucs 6s | demucs default, whole-track split | 0.61 | 1.5 (MUSDB18-HQ test) | measured |
+| SubRoformer | FP16, chunk 96000, batch 2 | 1.64 | 15.1 (MUSDB18-HQ test) | measured |
 | MVSep Mega 53 | | | | not measured (M3) |
 | MuScriptor medium | default | 2.29 | 20.5 (GuitarSet, incl. load; GPU shared part of the time) | measured |
 | Basic Pitch | ONNX, CPU | 0 | 0.61 (GuitarSet) | measured |
@@ -42,7 +42,7 @@ its row below is filled in.
 | Area | Dataset | Metric | Result |
 |---|---|---|---|
 | Beat | GTZAN, 998 tracks | beat F / downbeat F | 0.8872 / 0.7809 (see M1) |
-| Separation | MUSDB18-HQ test, MoisesDB | SDR per model per stem | not measured (M2/M3) |
+| Separation | MUSDB18-HQ test, 50 tracks | global SDR, 4-stem avg | BS-RoFormer SW 11.37, SCNet XL IHF 10.09, SubRoformer 10.01, HTDemucs 6s 7.93 (guitar / piano: no dataset yet) |
 | Guitar transcription | GuitarSet mic, 360 tracks | note F1 (onset) | consensus 0.850, MuScriptor 0.807, Basic Pitch 0.753 |
 | TAB | GuitarSet, oracle pitches | string/fret accuracy | 67.3% tuned (60.1% code defaults), held-out players |
 | Drums | ENST / STAR / ADTOF test | per-class onset F1 | not measured (M4) |
@@ -112,3 +112,54 @@ held-out players 03-05.
   playability, not an error rate.
 - With transcribed notes (pre-tuning weights): 62.2% of MuScriptor notes that matched a
   reference note got the reference string/fret.
+
+## Source separation on MUSDB18-HQ (QA session, 2026-11-12)
+
+`py -m uv run python benchmarks/bench_separation.py` -> `benchmarks/results/separation_musdb.json`
+(per-track rows in `separation_musdb_tracks.jsonl`). 50 test tracks, 2 h 16 min wall time, no OOM
+retries, all on CUDA.
+
+Metric: global SDR per track, `10*log10(sum(s^2) / sum((s - s_hat)^2))`, averaged over tracks
+(MSST "SDR avg", not museval's median of 1 s chunks). For 6-stem models, `other` is scored as
+other + guitar + piano, because MUSDB has no guitar or piano reference.
+
+| Model | vocals | drums | bass | other | avg |
+|---|---|---|---|---|---|
+| BS-RoFormer SW (6 stem) | 12.33 | **12.99** | **11.07** | **9.10** | **11.37** |
+| SCNet XL IHF (4 stem) | 11.42 | 11.82 | 9.24 | 7.88 | 10.09 |
+| SubRoformer (4 stem) | **12.50** | 11.92 | 8.05 | 7.55 | 10.01 |
+| HTDemucs 6s (6 stem) | 8.86 | 9.53 | 7.89 | 5.46 | 7.93 |
+
+Ensembles: `(1 - w) * BS-RoFormer SW + w * secondary`, scored from float16 copies of the estimates.
+
+| Secondary | w | vocals | drums | bass |
+|---|---|---|---|---|
+| SCNet XL IHF | 0.25 | 12.45 | 13.06 | 11.07 |
+| SCNet XL IHF | 0.50 | 12.31 | 12.85 | 10.67 |
+| SCNet XL IHF | 0.75 | 11.95 | 12.41 | 10.03 |
+| SubRoformer | 0.25 | 12.68 | **13.11** | 10.88 |
+| SubRoformer | 0.50 | **12.83** | 12.94 | 10.13 |
+| SubRoformer | 0.75 | 12.77 | 12.54 | 9.14 |
+
+Decision (QA_PLAN rule: per stem, blend only where the ensemble beats the best single model):
+
+- The primary stays BS-RoFormer SW. It is the best single model on drums, bass and other, and it is
+  the only model here with guitar and piano stems.
+- The secondary changes from SCNet XL IHF to SubRoformer, with weights vocals 0.5 (+0.33 dB over
+  the best single model), drums 0.25 (+0.12 dB) and bass 0.
+  - With bass at 0, the bass audio comes from BS-RoFormer SW only. Every mix tested made bass
+    worse, by up to 1.9 dB. The secondary's bass is still used for the agreement confidence.
+- SubRoformer's licence is still unconfirmed in the registry. That is acceptable for personal use.
+- In the `balanced` profile (secondary off), the run costs 5.0 s per audio minute instead of
+  about 20.
+
+Caveats:
+
+- These upstream checkpoints may have seen MUSDB18-HQ test tracks in training (their training sets
+  are not fully documented), so the absolute numbers may be optimistic. The ranking is what the
+  defaults rely on.
+- The other three models are about 2 dB above HTDemucs 6s. That fits the published ordering.
+- SubRoformer: the paper reports 11.59 avg; we measured 10.01, which is closer to MSST's ~10.4.
+- Guitar and piano stem quality is not measured. MUSDB has no such references; MoisesDB or Slakh
+  is still to do.
+

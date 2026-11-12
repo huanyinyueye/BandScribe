@@ -1,4 +1,5 @@
 from fractions import Fraction as F
+from pathlib import Path
 
 import guitarpro
 import mido
@@ -158,3 +159,12 @@ def test_musicxml_export(score, tmp_path):
     assert "<actual-notes>3</actual-notes>" in text and '<tie type="start"' in text
     assert "<words>?</words>" in text and "<rehearsal>Section 2</rehearsal>" in text
     assert "<beat-type>8</beat-type>" in text and "<unpitched>" in text
+
+
+def test_gp_export_relative_path(score, tmp_path, monkeypatch):
+    # Regression: the Node exporter runs with cwd=exporter/, so a relative output path used to
+    # resolve there and fail (found in the first E2E run on a real song).
+    monkeypatch.chdir(tmp_path)
+    report = export_gp(score, Path("out") / "song.gp")
+    assert report.verified and (tmp_path / "out" / "song.gp").is_file()
+    assert read_gp(Path("out") / "song.gp")["tracks"]

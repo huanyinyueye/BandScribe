@@ -163,3 +163,72 @@ Caveats:
 - Guitar and piano stem quality is not measured. MUSDB has no such references; MoisesDB or Slakh
   is still to do.
 
+
+## End to end: Roselia "Determination Symphony" vs a hand-made GP8 score (QA session, 2026-11-12)
+
+The user supplied the audio (WAV, 4:42) and a correct `.gp` transcription. The `.gp` embeds the
+same WAV with one sync point (0.6086 s) and a constant 190 BPM in 4/4, so score time maps
+exactly to audio time. The best global offset found by search was 0 to -25 ms, which confirms
+the alignment. Reference tracks: Vo., GT1-GT4 (drop D; doubled parts counted once), Ba, KB.1
+(synth lead), KB.2 (piano), Drumkit.
+
+    node benchmarks/gp_reference.mjs ref.gp ref.json
+    py -m uv run python benchmarks/score_vs_gp.py ref.json out/determination_symphony
+
+Profile `quality`, normal mode. Note F1 = pitch + onset within 50 ms.
+
+| Family | Pipeline final | MuScriptor alone | Basic Pitch alone | Final, no Basic-Pitch-only notes | Final, conf >= 0.5 |
+|---|---|---|---|---|---|
+| Guitar | 0.635 | **0.723** | 0.320 | 0.688 | 0.348 |
+| Bass | 0.677 | **0.849** | 0.435 | 0.818 | 0.511 |
+| Piano (KB.2) | 0.428 | **0.625** | 0.415 | 0.490 | 0.305 |
+| Vocals | 0.538 | 0.736 | 0.309 | **0.742** | 0.375 |
+
+Drums, onset F1 per class:
+
+| Source | kick | snare | hihat | tom | cymbal |
+|---|---|---|---|---|---|
+| Pipeline final | 0.953 | 0.873 | 0.740 | 0.738 | 0.794 |
+| ADTOF alone | 0.959 | **0.926** | **0.862** | 0.738 | **0.830** |
+| MuScriptor alone | **0.963** | 0.889 | 0.727 | **0.783** | 0.754 |
+
+Precision of the final notes, by where each note came from:
+
+| Source | Guitar | Bass | Piano | Vocals |
+|---|---|---|---|---|
+| Basic Pitch only (conf ~0.07-0.2) | 0.11-0.36 | 0.03-0.26 | 0.05-0.24 | 0.03-0.37 |
+| MuScriptor only, mix confirms (conf 0.43) | 0.77 | 0.90 | 0.64 | 0.93 |
+| MuScriptor only, mix disagrees (conf 0.21) | 0.64 | 0.69 | 0.47 | 0.72 |
+| MuScriptor only, mix silent (conf 0.43) | 0.48 | 0.48 | 0.45 | 0.45 |
+| Both models (conf ~0.84) | 0.51-0.80 | 0.71-0.90 | 0.76-0.84 | 0.81-0.90 |
+
+Findings:
+
+1. The GuitarSet consensus result does not transfer to separated band stems. On clean solo
+   guitar, Basic Pitch was a useful second opinion. On separated stems, notes found only by
+   Basic Pitch are mostly wrong, but normal mode keeps them. They are 20-50% of all notes and
+   lower F1 by 0.09-0.20.
+2. Confidence is miscalibrated:
+   - MuScriptor-only notes confirmed by the mix pass are 77-93% correct but get 0.43, so they
+     are marked "?".
+   - The "mix disagrees" penalty is inverted: those notes are more precise than notes the mix
+     pass did not cover.
+   - About 75% of all notes end up low-confidence, so the "?" mark carries little information.
+3. Drum fusion loses to ADTOF alone on hihat (0.74 vs 0.86) and snare. MuScriptor is better only
+   on tom and kick.
+4. Tempo and meter:
+   - Global BPM 187.5 vs 190. 187.5 = 60 / 0.32 s, which suggests a beat interval rounded to whole
+     50 fps frames.
+   - Tempo segments include octave errors (93.75 and 375 BPM).
+   - The detected meter changes about 80 times (1/4, 3/4, 7/4, 1/8...), although the song is 4/4
+     throughout. Result: 182 bars instead of about 219.
+   - Beat F 0.856, downbeat F 0.804.
+5. Export bugs found:
+   - `.gp` export failed with a relative `--out` path. Fixed, with a regression test.
+   - `verify` sorted the notes before stripping string/fret. Fixed.
+   - Piano chords with more than 6 notes are written on a 6-string placeholder staff and come
+     back with wrong pitches (open).
+6. QA: status warn, R6 (bass polyphony) 147, R8 42, no errors.
+
+This is one song, so it is not used to retune numbers on its own. The direction of findings 1-3
+is the same for all four pitched families.

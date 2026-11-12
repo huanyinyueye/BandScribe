@@ -100,9 +100,13 @@ def verify(payload: dict, summary: dict) -> list[str]:
         if (tp["kind"] == "drums") != bool(ts["percussion"]):
             issues.append(f"{name}: percussion flag differs")
         exp = sorted(_expected_notes(tp), key=lambda x: (x[0], x[1], x[2] or 0))
-        got_notes = sorted(ts["notes"], key=lambda x: (x[0], x[1], x[2] or 0))
+        got_notes = ts["notes"]
         if tp["kind"] != "tab":  # string/fret are meaningless on non-tab staves
             got_notes = [[n[0], n[1], None, None, n[4]] for n in got_notes]
+        # Strip before sorting, and sort on every field: otherwise two same-pitch notes in a bar
+        # (one tied, one not) can come out in a different order and look like a mismatch.
+        exp = sorted(exp, key=lambda x: (x[0], x[1], x[2] or 0, x[3] or 0, x[4]))
+        got_notes = sorted(got_notes, key=lambda x: (x[0], x[1], x[2] or 0, x[3] or 0, x[4]))
         if exp != got_notes:
             diff = next((i for i, (a, b) in enumerate(zip(exp, got_notes, strict=False))
                          if a != b), min(len(exp), len(got_notes)))
@@ -113,7 +117,8 @@ def verify(payload: dict, summary: dict) -> list[str]:
 
 def export_gp(score: Score, path: Path) -> GpExportReport:
     payload = build_payload(score)
-    path = Path(path)
+    # Absolute: the exporter runs with cwd=EXPORTER_DIR, so a relative path would land there.
+    path = Path(path).resolve()
     path.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory() as tmp:
         src = Path(tmp) / "score.json"
@@ -130,7 +135,8 @@ def export_gp(score: Score, path: Path) -> GpExportReport:
 
 def read_gp(path: Path) -> dict:
     """Summary of an existing `.gp` file as alphaTab reads it."""
-    proc = subprocess.run([_node(), str(SCRIPT), "--read", str(path)], cwd=EXPORTER_DIR,
+    proc = subprocess.run([_node(), str(SCRIPT), "--read", str(Path(path).resolve())],
+                          cwd=EXPORTER_DIR,
                           check=False, capture_output=True, text=True, encoding="utf-8")
     if proc.returncode != 0:
         raise GpExportError(proc.stderr.strip()[-1500:])

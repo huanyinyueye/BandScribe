@@ -29,12 +29,15 @@ from bandscribe.transcription.drums import coarse_class
 TOL = 0.05
 DEFAULT_MAP = {"guitar": ["GT1", "GT2", "GT3", "GT4"], "bass": ["Ba"], "piano": ["KB.2"],
                "keys_all": ["KB.1", "KB.2"], "vocals": ["Vo."], "drums": ["Drumkit"]}
+GP_OUTPUT_MAP = {"guitar": ["Guitar (combined)"], "bass": ["Bass"], "piano": ["Piano"],
+                 "vocals": ["Vocals"], "drums": ["Drums"]}
 
 
 def tick_to_seconds(ref: dict):
     ppq = ref["ppq"]
     tempos = sorted(ref["tempos"], key=lambda t: t["tick"])
-    offset = (ref["syncPoints"][0]["millisecondOffset"] / 1000) if ref["syncPoints"] else 0.0
+    offset = ((ref["syncPoints"][0]["millisecondOffset"] / 1000)
+              if ref["syncPoints"] else 0.0) + ref.get("audio_offset_seconds", 0.0)
     # Cumulative seconds at each tempo change.
     starts, secs, acc = [], [], 0.0
     for i, t in enumerate(tempos):
@@ -117,15 +120,19 @@ def main() -> None:
     ap.add_argument("ref")
     ap.add_argument("out_dir")
     ap.add_argument("--map", action="append", default=[], help="family=TrackA,TrackB")
+    ap.add_argument("--audio-offset", type=float, default=0.0,
+                    help="Seconds the supplied audio lags the GP embedded audio (negative if earlier).")
+    ap.add_argument("--gp-playback", help="JSON from gp_reference.mjs for the exported GP file")
     args = ap.parse_args()
     ref = json.loads(Path(args.ref).read_text("utf-8"))
+    ref["audio_offset_seconds"] = args.audio_offset
     out = Path(args.out_dir)
     mapping = dict(DEFAULT_MAP)
     for m in args.map:
         k, v = m.split("=", 1)
         mapping[k] = v.split(",")
     notes_dir = out / "notes"
-    report: dict = {"families": {}, "raw": {}}
+    report: dict = {"audio_offset_seconds": args.audio_offset, "families": {}, "raw": {}}
 
     for fam, names in mapping.items():
         r = ref_notes(ref, names)
@@ -152,6 +159,8 @@ def main() -> None:
         if not names:
             continue
         r, e = ref_notes(ref, names), est_notes(p)
+        if len(r) == 0:
+            continue  # no reference part: do not report a misleading zero score
         if fam == "drums":
             report["raw"][p.stem] = {"by_class": drum_scores(r, e)}
         else:
@@ -162,6 +171,20 @@ def main() -> None:
     an = out / "analysis.json"
     if an.exists():
         a = json.loads(an.read_text("utf-8"))
+        if args.gp_playback:
+            playback = json.loads(Path(args.gp_playback).read_text("utf-8"))
+            # GP playback begins at the score's first bar, which may precede audio time zero.
+            playback["audio_offset_seconds"] = a["bars"][0]["start_time"]
+            report["exported_gp"] = {}
+            for fam, names in mapping.items():
+                if fam not in GP_OUTPUT_MAP:
+                    continue
+                r, e = ref_notes(ref, names), ref_notes(playback, GP_OUTPUT_MAP[fam])
+                if len(r) == 0:
+                    continue
+                report["exported_gp"][fam] = (drum_scores(r, e) if fam == "drums"
+                                              else prf(r, e))
+                print("exported_gp", fam, json.dumps(report["exported_gp"][fam]))
         conv = tick_to_seconds(ref)
         end = max(conv(n["tick"]) for t in ref["tracks"] for n in t["notes"])
         ref_beats = np.array([conv(k * ref["ppq"]) for k in range(10_000)

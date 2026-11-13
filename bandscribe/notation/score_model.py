@@ -37,6 +37,9 @@ class BarSpec:
     end_time: float
     section: str | None = None
     confident: bool = True  # False: meter of this bar is doubtful (see analysis.meter)
+    # Audio time of each tracked beat in the bar plus the bar end (numerator + 1 values);
+    # lets exporters follow tempo drift inside a bar. Empty for older scores.
+    beat_times: tuple[float, ...] = ()
 
     @property
     def beat_q(self) -> Fraction:
@@ -106,7 +109,8 @@ class Score:
             "bars": [{"index": b.index, "numerator": b.numerator, "denominator": b.denominator,
                       "start_beat": b.start_beat, "start_q": _f(b.start_q), "bpm": b.bpm,
                       "start_time": b.start_time, "end_time": b.end_time, "section": b.section,
-                      "confident": b.confident} for b in self.bars],
+                      "confident": b.confident,
+                      "beat_times": [round(t, 4) for t in b.beat_times]} for b in self.bars],
             "tracks": [{
                 "id": t.id, "name": t.name, "family": t.family, "kind": t.kind,
                 "midi_program": t.midi_program, "tuning_key": t.tuning_key,
@@ -127,7 +131,8 @@ class Score:
             raise ValueError("unsupported score schema version")
         bars = [BarSpec(b["index"], b["numerator"], b["denominator"], b["start_beat"],
                         _pf(b["start_q"]), b["bpm"], b["start_time"], b["end_time"],
-                        b.get("section"), b.get("confident", True)) for b in d["bars"]]
+                        b.get("section"), b.get("confident", True),
+                        tuple(b.get("beat_times", ()))) for b in d["bars"]]
         tracks = []
         for t in d["tracks"]:
             notes = [ScoreNote(n["bar"], _pf(n["pos_q"]), _pf(n["dur_q"]), n["pitch"],

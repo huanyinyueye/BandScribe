@@ -1,5 +1,8 @@
+import zipfile
+from dataclasses import replace
 from fractions import Fraction as F
 from pathlib import Path
+from xml.etree import ElementTree as ET
 
 import guitarpro
 import mido
@@ -94,6 +97,51 @@ def test_gp_export_reads_back_identically(score, tmp_path):
     assert sorted(n[1] for n in s["tracks"][3]["notes"]) == [69, 72]
     again = read_gp(report.path)
     assert again["tracks"][0]["notes"] == g["notes"]
+
+
+def test_gp_piano_large_tied_chord_retains_pitches(tmp_path):
+    # Ringing Bloom exposed a piano chord larger than the six-string fallback:
+    # alphaTab reused strings and changed pitches on the tied continuation.
+    beats = 1.0 + np.arange(12) * 0.5
+    tm = build_tempo_map(beats)
+    bars = build_bars(tm, analyze_meter(beats, beats[::4]), 1.0, beats[-1])
+    raw = [Note(2.5, 3.5, pitch, instrument="piano")
+           for pitch in (54, 66, 69, 71, 76, 78, 83, 88)]
+    notes, grid, _ = quantize_notes(raw, bars, tm)
+    piano = Track("piano", "Piano", "piano", "staff", notes=notes, grid=grid)
+    report = export_gp(Score("Piano", bars, [piano]), tmp_path / "piano.gp")
+    assert report.verified, report.mismatches
+
+
+def test_gp_integer_tempos_do_not_accumulate_timing_error(tmp_path):
+    beats = np.round((0.4 + np.arange(401) * 60 / 195) / 0.02) * 0.02
+    tm = build_tempo_map(beats)
+    bars = build_bars(tm, analyze_meter(beats, beats[::4]), beats[0], beats[-1])
+    score = Score("Tempo", bars, [Track("piano", "Piano", "piano", "staff")])
+    report = export_gp(score, tmp_path / "tempo.gp")
+    assert report.verified, report.mismatches
+    elapsed, bpm = 0.0, None
+    for bar, written in zip(bars, report.summary["masterBars"], strict=True):
+        # Tempo can change inside a bar (per-beat corrections at ratio positions).
+        pos = 0.0
+        for ratio, value in [*written["tempos"], [1.0, None]]:
+            if bpm is not None:
+                elapsed += 60 * float(bar.length_q) * (ratio - pos) / bpm
+            pos, bpm = ratio, value if value is not None else bpm
+        assert abs(elapsed - (bar.end_time - bars[0].start_time)) < 0.05
+
+
+def test_gp_keeps_a_real_small_tempo_change_visible(score, tmp_path):
+    # Nominal tempo only: drop per-beat times so playback follows the edited bpm.
+    bars = [replace(b, bpm=120 if i == 0 else 124, beat_times=())
+            for i, b in enumerate(score.bars)]
+    report = export_gp(Score("Tempo", bars, score.tracks), tmp_path / "tempo-change.gp")
+    with zipfile.ZipFile(report.path) as archive:
+        root = ET.fromstring(archive.read("Content/score.gpif"))
+    tempo = [a for a in root.findall("./MasterTrack/Automations/Automation")
+             if a.findtext("Type") == "Tempo"]
+    assert any(a.findtext("Visible") == "true" and
+               int(a.findtext("Value").split()[0]) in (123, 124, 125) for a in tempo[1:])
 
 
 def test_gp_verify_detects_differences(score, tmp_path):

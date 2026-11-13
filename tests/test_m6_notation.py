@@ -79,6 +79,18 @@ def test_sections_attach_to_nearest_bar():
     assert [b.section for b in bars] == ["Section 1", None, "Section 2", None]
 
 
+def test_written_tempo_does_not_accumulate_drift_from_frame_quantized_beats():
+    # Beat This emits times on a 20 ms grid. A median interval of 0.32 s turns a
+    # steady 195 BPM song into 187.5 BPM and makes the exported score drift.
+    beats = np.round((0.4 + np.arange(401) * 60 / 195) / 0.02) * 0.02
+    tm = build_tempo_map(beats)
+    bars = build_bars(tm, analyze_meter(beats, beats[::4]), beats[0], beats[-1])
+    elapsed = 0.0
+    for bar in bars:
+        elapsed += 60 * float(bar.length_q) / bar.bpm
+        assert abs(elapsed - (bar.end_time - bars[0].start_time)) < 0.05
+
+
 # --- quantisation --------------------------------------------------------------------------
 
 def test_sixteenths_snap_to_grid():
@@ -240,7 +252,7 @@ def test_score_json_round_trip(tmp_path):
     assert back.note_count() == 2
 
 
-def test_written_tempo_ignores_jitter_but_keeps_real_changes():
+def test_written_tempo_follows_jitter_and_keeps_real_changes():
     rng = np.random.default_rng(5)
     first = np.cumsum(np.full(40, 0.5) + rng.normal(0, 0.01, 40))       # ~120 BPM, jittery
     second = first[-1] + np.cumsum(np.full(40, 0.4) + rng.normal(0, 0.008, 40))  # ~150 BPM
@@ -248,7 +260,9 @@ def test_written_tempo_ignores_jitter_but_keeps_real_changes():
     tm = build_tempo_map(beats)
     bars = build_bars(tm, analyze_meter(beats, beats[::4]), float(beats[0]), float(beats[-1]))
     marks = sorted({round(b.bpm) for b in bars})
-    assert len(marks) <= 4, marks  # not one tempo per bar
     assert min(marks) == pytest.approx(120, abs=3) and max(marks) == pytest.approx(150, abs=3)
-    # Bar start times are still the tracked ones.
     assert bars[3].start_time == pytest.approx(float(beats[12]))
+    elapsed = 0.0
+    for bar in bars:
+        elapsed += 60 * float(bar.length_q) / bar.bpm
+        assert abs(elapsed - (bar.end_time - bars[0].start_time)) < 0.05

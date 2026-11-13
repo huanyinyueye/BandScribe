@@ -116,7 +116,7 @@ def build_musicxml(score: Score) -> ET.ElementTree:
             if idx + 1 < len(flat):
                 nb, nk = flat[idx + 1]
                 nxt_tied[(bi, k)] = layout[nb][nk].tied
-        last_sig, last_bpm = None, None
+        last_sig, last_bpm, last_sound_bpm = None, None, None
         for bar, beats in zip(score.bars, layout, strict=True):
             measure = _sub(part, "measure", number=str(bar.index + 1))
             sig = (bar.numerator, bar.denominator)
@@ -139,14 +139,19 @@ def build_musicxml(score: Score) -> ET.ElementTree:
                     if octave_change:
                         _sub(clef, "clef-octave-change", octave_change)
                 last_sig = sig
-            if i == 1 and (last_bpm is None or abs(bar.bpm - last_bpm) >= 1):
-                d = _sub(measure, "direction", placement="above")
-                dt = _sub(d, "direction-type")
-                met = _sub(dt, "metronome")
-                _sub(met, "beat-unit", "quarter")
-                _sub(met, "per-minute", round(bar.bpm))
-                _sub(d, "sound", tempo=str(round(bar.bpm, 2)))
-                last_bpm = bar.bpm
+            if i == 1:
+                visible = last_bpm is None or abs(bar.bpm - last_bpm) >= 1
+                if visible:
+                    d = _sub(measure, "direction", placement="above")
+                    met = _sub(_sub(d, "direction-type"), "metronome")
+                    _sub(met, "beat-unit", "quarter")
+                    _sub(met, "per-minute", round(bar.bpm))
+                    _sub(d, "sound", tempo=str(round(bar.bpm, 2)))
+                    last_bpm = bar.bpm
+                    last_sound_bpm = bar.bpm
+                elif last_sound_bpm is None or abs(bar.bpm - last_sound_bpm) > 0.005:
+                    _sub(measure, "sound", tempo=str(round(bar.bpm, 2)))
+                    last_sound_bpm = bar.bpm
             if bar.section and i == 1:
                 d = _sub(measure, "direction", placement="above")
                 _sub(_sub(d, "direction-type"), "rehearsal", bar.section)

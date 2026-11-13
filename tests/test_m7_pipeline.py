@@ -133,6 +133,28 @@ def test_sections_found_at_a_clear_change():
 
 # --- QA hook and note JSON -----------------------------------------------------------------
 
+def test_guitar_vote_drops_basic_only_but_preserves_single_backend(tmp_path):
+    from bandscribe.attribution.instrument_id import StemActivity
+    from bandscribe.pipeline import _Run, _vote_and_attribute
+
+    cfg = PipelineConfig.from_defaults("balanced", instruments=["guitar"])
+    activity = {"guitar": StemActivity("guitar", -10, -1, 3, 1, True,
+                                       np.ones(6, dtype=bool))}
+    mus = Note(0.5, 0.7, 60, sources=("muscriptor_medium",), instrument="guitar")
+    basic = Note(1.0, 1.2, 64, sources=("basic_pitch",), instrument="guitar")
+    run = _Run(Path("song.wav"), cfg, tmp_path, None, None)
+    final, log = _vote_and_attribute(run, {"muscriptor_medium": {"guitar": [mus]},
+                                           "basic_pitch": {"guitar": [basic]}},
+                                     {"pitched": ["guitar"], "drums": False},
+                                     None, {}, activity, {})
+    assert [n.pitch for n in final["guitar"]] == [60]
+    assert any(n["pitch"] == 64 for n in log.removed)
+    final, _ = _vote_and_attribute(run, {"basic_pitch": {"guitar": [basic]}},
+                                   {"pitched": ["guitar"], "drums": False},
+                                   None, {}, activity, {})
+    assert [n.pitch for n in final["guitar"]] == [64]
+
+
 def test_qa_hook_contract():
     """The pipeline only relies on this much of the QA result (docs/INTERFACES.md section 3)."""
     result = qa.run_checks(Score("x", [], []), {})

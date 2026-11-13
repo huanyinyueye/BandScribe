@@ -232,8 +232,31 @@ def _transcribe(run: _Run, audio, stems: dict, activity: dict) -> tuple[dict, di
                 run.check_cancel()
                 run.report((bi + fraction) / max(1, len(backends)), message)
 
+            ens = cfg.pitch_ensemble if backend == "muscriptor_medium" else {}
+            extra = [(f, s, a) for f, a in jobs if f in ens.get("families", ())
+                     for s in ens.get("shifts", ())]
             if hasattr(tr, "transcribe_many"):
-                outs = tr.transcribe_many([(a, audio.sr, f) for f, a in jobs], progress=sub)
+                from bandscribe.transcription import pitch_ensemble as pe
+
+                all_jobs = [(a, audio.sr, f) for f, a in jobs]
+                all_jobs += [(pe.shifted_audio(a, audio.sr, s), audio.sr, f) for f, s, a in extra]
+                outs = tr.transcribe_many(all_jobs, progress=sub)
+                outs, shifted = outs[:len(jobs)], outs[len(jobs):]
+                for k, (family, _a) in enumerate(jobs):
+                    runs = {0: outs[k]}
+                    for (f, s, _x), notes in zip(extra, shifted, strict=True):
+                        if f == family:
+                            runs[s] = pe.unshift(notes, s)
+                            _write_json(notes_dir / f"raw_{backend}_{family}_shift{s:+d}.json",
+                                        notes_to_json(runs[s]))
+                    if len(runs) > 1:
+                        outs[k] = pe.vote(runs, int(ens["min_votes"]))
+                    if backend == "muscriptor_medium" and family in cfg.power_chord_families:
+                        from bandscribe.transcription.power_chords import drop_root_octaves
+
+                        outs[k], removed = drop_root_octaves(outs[k])
+                        _write_json(notes_dir / f"dropped_power_chord_octave_{family}.json",
+                                    notes_to_json(removed))
             else:
                 outs = []
                 for k, (f, a) in enumerate(jobs):
@@ -283,6 +306,19 @@ def _vote_and_attribute(run: _Run, raw: dict, plan: dict, mix_notes, stems, acti
         stats[family] = {"matched": st.matched, "primary_only": st.primary_only,
                          "secondary_only": st.secondary_only, "agreement": round(st.agreement, 3)}
         _write_json(notes_dir / f"consensus_{family}.json", notes_to_json(notes))
+        # On separated band guitar, Basic Pitch-only notes reduced F1 on both
+        # Neo-Aspect and the earlier Determination Symphony evaluation. Preserve
+        # them in the raw/consensus artifacts, but avoid adding them to the score.
+        if (family == "guitar" and available[:2] == ["muscriptor_medium", "basic_pitch"]
+                and primary):
+            kept = []
+            for note in notes:
+                if "muscriptor_medium" in note.sources:
+                    kept.append(note)
+                else:
+                    log.remove(note, "Basic Pitch-only guitar note without MuScriptor agreement")
+            stats[family]["secondary_only_removed"] = len(notes) - len(kept)
+            notes = kept
         notes = attr.apply_range(notes, family, log)
         notes = attr.drop_inactive(notes, activity[family], log)
         notes = attr.apply_stem_confidence(notes, confidence.get(family))

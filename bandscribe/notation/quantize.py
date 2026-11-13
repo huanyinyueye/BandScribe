@@ -27,8 +27,8 @@ GRIDS = {
 }
 
 
-# A bar within this fraction of its tempo segment is written at the segment tempo.
-TEMPO_MARK_TOLERANCE = 0.08
+# Keep a stable tempo mark only while its accumulated timing error stays small.
+TEMPO_DRIFT_TOLERANCE = 0.02  # seconds
 
 
 def default_grid(denominator: int) -> int:
@@ -89,17 +89,27 @@ def build_bars(tempo_map: TempoMap, meter: Meter, first_time: float, last_time: 
 
     bars: list[BarSpec] = []
     q = Fraction(0)
+    written_time: float | None = None
     for i, (start, count, d, confident) in enumerate(spans):
         t0 = float(tempo_map.beat_to_time(start))
         t1 = float(tempo_map.beat_to_time(start + count))
+        if written_time is None:
+            written_time = t0
         length_q = Fraction(4 * count, d)
-        bpm = 60.0 * float(length_q) / (t1 - t0) if t1 > t0 else tempo_map.global_bpm or 120.0
-        # Written tempo: the tempo segment's value unless this bar really deviates from it.
-        # Bar start times stay exact; this only keeps tempo marks from changing every bar.
+        # Each exported bar starts where the previous written bar ended, not at t0.
+        # Compensate accumulated error; a small per-bar error otherwise drifts over a song.
+        duration = max(t1 - written_time, 1e-6)
+        bpm = 60.0 * float(length_q) / duration
         seg_bpm = tempo_map.bpm_at((t0 + t1) / 2) * 4 / d
-        if seg_bpm > 0 and abs(bpm - seg_bpm) / seg_bpm <= TEMPO_MARK_TOLERANCE:
+        if (seg_bpm > 0 and
+                abs(written_time + 60.0 * float(length_q) / seg_bpm - t1)
+                <= TEMPO_DRIFT_TOLERANCE):
             bpm = seg_bpm
-        bars.append(BarSpec(i, count, d, start, q, round(bpm, 2), t0, t1, None, confident))
+        bpm = round(bpm, 2)
+        beat_times = tuple(round(float(t), 4) for t in
+                           tempo_map.beat_to_time(np.arange(start, start + count + 1)))
+        bars.append(BarSpec(i, count, d, start, q, bpm, t0, t1, None, confident, beat_times))
+        written_time += 60.0 * float(length_q) / bpm
         q += length_q
     for s in sections or []:
         i = min(range(len(bars)), key=lambda k: abs(bars[k].start_time - s.start_time))

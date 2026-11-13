@@ -9,9 +9,12 @@ every track the sequence of (bar, pitch, string, fret, tie).
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import subprocess
 import tempfile
+import xml.etree.ElementTree as ET
+import zipfile
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -61,7 +64,8 @@ def build_payload(score: Score) -> dict:
     return {
         "title": score.title, "artist": score.meta.get("artist", ""), "notice": NOTICE,
         "key_fifths": key.get("fifths"), "key_minor": key.get("mode") == "minor",
-        "bars": [{"num": b.numerator, "den": b.denominator, "bpm": b.bpm, "section": b.section}
+        "bars": [{"num": b.numerator, "den": b.denominator, "bpm": b.bpm, "section": b.section,
+                  "beats": list(b.beat_times)}
                  for b in score.bars],
         "tracks": tracks}
 
@@ -115,6 +119,69 @@ def verify(payload: dict, summary: dict) -> list[str]:
     return issues
 
 
+def _restore_pitched_staves(path: Path, payload: dict) -> None:
+    """Remove alphaTab's synthetic guitar fingering from non-stringed staves.
+
+    Its GP writer assigns a six-string tuning even to piano and vocals. Large tied
+    chords can reuse a string, causing the reader to change their pitches. GPIF
+    stores the sounding MIDI pitch too, so restore pitched notes before read-back.
+    """
+    staff_indices = {i for i, t in enumerate(payload["tracks"]) if t["kind"] == "staff"}
+    if not staff_indices:
+        return
+    with zipfile.ZipFile(path) as archive:
+        entries = [(info, archive.read(info)) for info in archive.infolist()]
+        comment = archive.comment
+    xml = next(data for info, data in entries if info.filename == "Content/score.gpif")
+    root = ET.fromstring(xml)
+    tracks = root.find("Tracks")
+    for index in staff_indices:
+        for staff in tracks[index].findall("./Staves/Staff"):
+            properties = staff.find("Properties")
+            for prop in list(properties):
+                if prop.get("name") == "Tuning":
+                    properties.remove(prop)
+
+    def lookup(name: str) -> dict[str, ET.Element]:
+        return {element.get("id"): element for element in root.find(name)}
+
+    bars, voices, beats, notes = (lookup(name) for name in ("Bars", "Voices", "Beats", "Notes"))
+    note_ids: set[str] = set()
+    for master in root.find("MasterBars"):
+        bar_ids = master.findtext("Bars", "").split()
+        for index in staff_indices:
+            for voice_id in bars[bar_ids[index]].findtext("Voices", "").split():
+                if voice_id not in voices:
+                    continue
+                for beat_id in voices[voice_id].findtext("Beats", "").split():
+                    note_ids.update(beats[beat_id].findtext("Notes", "").split())
+    for note_id in note_ids:
+        properties = notes[note_id].find("Properties")
+        midi = properties.find("./Property[@name='Midi']/Number")
+        if midi is None or midi.text is None:
+            raise GpExportError(f"pitched GP note {note_id} has no MIDI pitch")
+        pitch = int(midi.text)
+        for prop in list(properties):
+            if prop.get("name") in {"String", "Fret", "Octave", "Tone"}:
+                properties.remove(prop)
+        octave = ET.SubElement(properties, "Property", name="Octave")
+        ET.SubElement(octave, "Number").text = str(pitch // 12)
+        tone = ET.SubElement(properties, "Property", name="Tone")
+        ET.SubElement(tone, "Step").text = str(pitch % 12)
+
+    fixed = ET.tostring(root, encoding="utf-8", xml_declaration=True)
+    with tempfile.NamedTemporaryFile(dir=path.parent, suffix=".gp", delete=False) as tmp:
+        temp_path = Path(tmp.name)
+    try:
+        with zipfile.ZipFile(temp_path, "w") as archive:
+            archive.comment = comment
+            for info, data in entries:
+                archive.writestr(info, fixed if info.filename == "Content/score.gpif" else data)
+        os.replace(temp_path, path)
+    finally:
+        temp_path.unlink(missing_ok=True)
+
+
 def export_gp(score: Score, path: Path) -> GpExportReport:
     payload = build_payload(score)
     # Absolute: the exporter runs with cwd=EXPORTER_DIR, so a relative path would land there.
@@ -128,6 +195,9 @@ def export_gp(score: Score, path: Path) -> GpExportReport:
     if proc.returncode != 0 or not path.is_file():
         raise GpExportError(proc.stderr.strip()[-1500:] or "exporter produced no file")
     summary = json.loads(proc.stdout)
+    _restore_pitched_staves(path, payload)
+    summary.update(read_gp(path))
+    summary["bytes"] = path.stat().st_size
     issues = verify(payload, summary)
     return GpExportReport(path, summary["bytes"], summary.get("alphatab", "?"), not issues,
                           issues, sum(len(t["notes"]) for t in summary["tracks"]), summary)

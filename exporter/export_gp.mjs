@@ -22,20 +22,40 @@ function buildScore(input) {
   score.tab = 'BandScribe (automatic transcription)';
   score.notices = input.notice ?? '';
   let lastBpm = null;
+  let lastVisibleBpm = null;
+  let targetSeconds = 0;
+  let writtenSeconds = 0;
   for (const b of input.bars) {
     const mb = new m.MasterBar();
     mb.timeSignatureNumerator = b.num;
     mb.timeSignatureDenominator = b.den;
-    const bpm = Math.round(b.bpm);
-    if (lastBpm === null || Math.abs(bpm - lastBpm) >= 1) {
+    // GP stores whole BPM values. Carry the rounding error forward so a long song does
+    // not drift away from the audio. With per-beat times, follow the played timing beat
+    // by beat (a single tempo per bar misplaces notes by tens of ms in rubato bars).
+    const quarters = 4 * b.num / b.den;
+    const beats = Array.isArray(b.beats) && b.beats.length === b.num + 1 ? b.beats : null;
+    const segments = beats
+      ? beats.slice(1).map((t, k) => t - beats[k])
+      : [60 * quarters / b.bpm];
+    const segQuarters = quarters / segments.length;
+    segments.forEach((duration, k) => {
+      targetSeconds += duration;
+      const remaining = targetSeconds - writtenSeconds;
+      const bpm = Math.max(1, Math.round(60 * segQuarters / (remaining > 0 ? remaining : duration)));
+      writtenSeconds += 60 * segQuarters / bpm;
+      // Only the bar's nominal tempo is shown; per-beat corrections stay hidden.
+      const visible = k === 0 && (lastVisibleBpm === null || Math.abs(b.bpm - lastVisibleBpm) >= 1);
+      if (!visible && lastBpm !== null && Math.abs(bpm - lastBpm) < 1) return;
       const a = new m.Automation();
       a.type = m.AutomationType.Tempo;
       a.value = bpm;
-      a.ratioPosition = 0;
+      a.ratioPosition = k / segments.length;
       a.isLinear = false;
+      a.isVisible = visible;
+      if (a.isVisible) lastVisibleBpm = b.bpm;
       mb.tempoAutomations.push(a);
       lastBpm = bpm;
-    }
+    });
     if (b.section) {
       mb.section = new m.Section();
       mb.section.text = b.section;
@@ -129,6 +149,7 @@ function summarize(score) {
       num: mb.timeSignatureNumerator, den: mb.timeSignatureDenominator,
       section: mb.section ? mb.section.text : null,
       tempo: mb.tempoAutomations.length ? mb.tempoAutomations[0].value : null,
+      tempos: mb.tempoAutomations.map((a) => [a.ratioPosition, a.value]),
     })),
     tracks: [],
   };

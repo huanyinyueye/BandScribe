@@ -20,6 +20,15 @@ transcription:
   pitched: [muscriptor_medium, basic_pitch]
   drums: [muscriptor_medium, adtof]
   mix_vote: muscriptor_medium    # unconditioned transcription of the mix (null = off)
+  # Also transcribe the stem shifted +-1 semitone and keep notes found by 2 of 3 runs.
+  # Roselia 30 s guitar clips, raw note F1: Neo-Aspect 0.571 -> 0.610, Ringing Bloom
+  # 0.771 -> 0.773 (docs/e2e/2026-11-12-roselia/result.md). Guitar only: no evidence for
+  # other instruments. Triples guitar transcription time.
+  pitch_ensemble: {shifts: [1, -1], min_votes: 2, families: [guitar]}
+  # Write power chords as root + fifth: drop the octave MuScriptor adds on top of them.
+  # Whole-song raw note F1: Neo-Aspect 0.625 -> 0.681, Ringing Bloom 0.768 -> 0.812
+  # (docs/e2e/2026-11-12-roselia/result.md). [] = keep the octaves.
+  power_chord_families: [guitar]
 
 beats: beat_this
 

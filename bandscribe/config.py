@@ -51,6 +51,10 @@ class PipelineConfig:
     pitched_transcribers: list[str] = field(default_factory=lambda: ["basic_pitch"])
     drum_transcribers: list[str] = field(default_factory=lambda: ["adtof"])
     mix_vote: str | None = None
+    # Pitch-shift test-time ensemble for MuScriptor: {shifts, min_votes, families}; {} = off.
+    pitch_ensemble: dict[str, Any] = field(default_factory=dict)
+    # Families whose MuScriptor power chords are written root + fifth (octave dropped).
+    power_chord_families: list[str] = field(default_factory=list)
     beat_model: str = "beat_this"
     low_confidence: float = 0.5
     onset_tolerance: float = 0.05
@@ -79,7 +83,9 @@ class PipelineConfig:
             separator_primary=sep["primary"], separator_secondary=sep.get("secondary"),
             blend_weights=dict(sep.get("blend_weights") or {}),
             pitched_transcribers=list(tr["pitched"]), drum_transcribers=list(tr["drums"]),
-            mix_vote=tr.get("mix_vote"), beat_model=d["beats"],
+            mix_vote=tr.get("mix_vote"), pitch_ensemble=dict(tr.get("pitch_ensemble") or {}),
+            power_chord_families=list(tr.get("power_chord_families") or []),
+            beat_model=d["beats"],
             low_confidence=float(th["low_confidence"]),
             onset_tolerance=float(th["onset_tolerance"]),
             drum_onset_tolerance=float(th["drum_onset_tolerance"]),
@@ -110,6 +116,20 @@ class PipelineConfig:
         for key, value in self.guitar_dp.items():
             if isinstance(value, bool) or not isinstance(value, int | float):
                 raise ConfigError(f"guitar_dp.{key} must be a number")
+        if self.pitch_ensemble:
+            shifts = self.pitch_ensemble.get("shifts") or []
+            votes = self.pitch_ensemble.get("min_votes")
+            if (not shifts or any(isinstance(s, bool) or not isinstance(s, int) or s == 0
+                                  for s in shifts)):
+                raise ConfigError("pitch_ensemble.shifts must be non-zero semitone integers")
+            if not isinstance(votes, int) or not 1 <= votes <= len(shifts) + 1:
+                raise ConfigError("pitch_ensemble.min_votes must be between 1 and runs")
+            bad = set(self.pitch_ensemble.get("families") or []) - set(FAMILIES)
+            if bad:
+                raise ConfigError(f"unknown pitch_ensemble families {sorted(bad)}")
+        bad = set(self.power_chord_families) - set(FAMILIES)
+        if bad:
+            raise ConfigError(f"unknown power_chord_families {sorted(bad)}")
         if not self.pitched_transcribers:
             raise ConfigError("at least one pitched transcriber is required")
 

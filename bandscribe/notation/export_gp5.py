@@ -62,7 +62,17 @@ def export_gp5(score: Score, path: Path) -> Gp5ExportReport:
     song.artist = _ascii(str(score.meta.get("artist", "")))
     song.tab = "BandScribe (automatic transcription)"
     song.notice = ["'?' marks low-confidence notes.", "Non-commercial use only."]
-    song.tempo = max(30, int(round(score.bars[0].bpm))) if score.bars else 120
+    tempos = []
+    target_time = written_time = 0.0
+    for bar in score.bars:
+        length = float(bar.length_q)
+        duration = 60 * length / bar.bpm
+        target_time += duration
+        remaining = target_time - written_time
+        bpm = max(1, round(60 * length / (remaining if remaining > 0 else duration)))
+        tempos.append(bpm)
+        written_time += 60 * length / bpm
+    song.tempo = tempos[0] if tempos else 120
     song.tracks = []
     song.measureHeaders = []
 
@@ -98,7 +108,7 @@ def export_gp5(score: Score, path: Path) -> Gp5ExportReport:
             channel += 2
         layout = layout_track(t, score.bars)
         last_bpm = song.tempo
-        for bar, header, beats in zip(score.bars, song.measureHeaders, layout, strict=True):
+        for header, beats, bpm in zip(song.measureHeaders, layout, tempos, strict=True):
             measure = g.Measure(track, header)
             voice = measure.voices[0]
             for i, lb in enumerate(beats):
@@ -109,7 +119,6 @@ def export_gp5(score: Score, path: Path) -> Gp5ExportReport:
                               status=g.BeatStatus.rest if lb.rest else g.BeatStatus.normal)
                 if lb.text:
                     beat.text = lb.text
-                bpm = int(round(bar.bpm))
                 if i == 0 and k == 0 and abs(bpm - last_bpm) >= 1:
                     beat.effect.mixTableChange = g.MixTableChange(
                         tempo=g.MixTableItem(value=bpm, duration=0, allTracks=True))

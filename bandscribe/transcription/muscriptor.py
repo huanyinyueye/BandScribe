@@ -32,6 +32,12 @@ for _group, _family in GROUP_FAMILY.items():
     FAMILY_GROUPS.setdefault(_family, []).append(_group)
 
 DRUM_HIT_DURATION = 0.05
+# Pitched onsets come out late vs human-aligned GP scores. Whole-song raw note F1 by
+# correction (Neo-Aspect / Ringing Bloom): 0 ms 0.386/0.691, 20 ms 0.567/0.749,
+# 30 ms 0.588/0.747, 50 ms 0.596/0.704. Each song's best value also improved the other
+# song; 30 ms is the best mean. See docs/e2e/2026-11-12-roselia/result.md. Drums are not
+# corrected (no evidence yet).
+PITCHED_ONSET_LATENCY = 0.03
 
 
 def family_of(group: str) -> str:
@@ -122,10 +128,14 @@ class MuScriptorTranscriber(Transcriber):
                     family = family_of(start.instrument)
                     if instrument not in ("mix", "other") and family != instrument:
                         continue  # cannot happen with the hard constraint; kept as a guard
+                    onset = float(start.start_time)
                     end = max(ev.end_time, start.start_time)
                     if family == "drums":
-                        end = start.start_time + DRUM_HIT_DURATION
-                    notes.append(Note(float(start.start_time), float(end), int(start.pitch),
+                        end = onset + DRUM_HIT_DURATION
+                    else:
+                        onset = max(0.0, onset - PITCHED_ONSET_LATENCY)
+                        end = max(onset, end - PITCHED_ONSET_LATENCY)
+                    notes.append(Note(onset, float(end), int(start.pitch),
                                       sources=(self.name,), instrument=family,
                                       flags=(f"mus:{start.instrument}",)))
                 results.append(sort_notes(notes))

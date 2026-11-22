@@ -14,8 +14,14 @@ def get_transcriber(model_id: str, **opts) -> Transcriber:
     only), ``adtof`` (drums only). Options are passed to the backend constructor.
     """
     if model_id == "muscriptor_medium":
-        from bandscribe.transcription.muscriptor import MuScriptorTranscriber
+        from bandscribe.runtime import audiocpp
+        from bandscribe.transcription.muscriptor import (
+            AudiocppMuScriptorTranscriber,
+            MuScriptorTranscriber,
+        )
 
+        if audiocpp.engine() == "audiocpp":
+            return AudiocppMuScriptorTranscriber("medium", **opts)
         return MuScriptorTranscriber("medium", **opts)
     if model_id == "basic_pitch":
         from bandscribe.transcription.basic_pitch import BasicPitchTranscriber

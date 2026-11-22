@@ -46,14 +46,18 @@ def transcribe(
     bass_tuning: str = typer.Option(None, "--bass-tuning", help="Tuning key, or auto."),
     title: str = typer.Option(None, "--title", help="Score title (default: file name)."),
     no_cache: bool = typer.Option(False, "--no-cache", help="Ignore cached stems."),
+    transcriber: str = typer.Option(None, "--transcriber", help="Pitched engine: muscriptor_medium or basic_pitch (default: profile)."),
 ) -> None:
     """Transcribe a song into a full score and parts (.gp, .gp5, MIDI, MusicXML)."""
     from bandscribe.config import PipelineConfig
     from bandscribe.pipeline import run_pipeline
 
     _utf8_stdout()
+    if transcriber and transcriber not in ("muscriptor_medium", "basic_pitch"):
+        raise typer.BadParameter("choose muscriptor_medium or basic_pitch", param_hint="--transcriber")
     cfg = PipelineConfig.from_defaults(profile, strict=strict, guitar_tuning=guitar_tuning,
                                        bass_tuning=bass_tuning, title=title,
+                                       pitched_transcribers=[transcriber] if transcriber else None,
                                        reuse_cache=not no_cache)
     state = {"stage": None, "tenth": -1}
 

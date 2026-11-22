@@ -1,0 +1,598 @@
+diff --git a/src/models/roformer/assets.cpp b/src/models/roformer/assets.cpp
+index 5a5ca38..cd301c4 100644
+--- a/src/models/roformer/assets.cpp
++++ b/src/models/roformer/assets.cpp
+@@ -200,8 +200,17 @@ RoformerArchitectureConfig parse_config(
+     }
+     config.stft_freq_bins = config.n_fft / 2 + 1;
+     config.chunk_frames = 1 + config.chunk_size / config.hop_length;
+-    config.instruments = {"vocals"};
+-    config.target_instrument = std::string("vocals");
++    config.instruments = json::optional_string_array(parsed, "instruments");
++    if (config.instruments.empty()) {
++        config.instruments = {"vocals"};
++    }
++    if (static_cast<int>(config.instruments.size()) != config.num_stems) {
++        throw std::runtime_error(
++            std::string(family) + " instruments count must match num_stems");
++    }
++    if (config.num_stems == 1) {
++        config.target_instrument = config.instruments.front();
++    }
+     config.fused_qkv = impl.fused_qkv;
+     config.transformer_output_norm = impl.transformer_output_norm;
+     config.has_final_norm = impl.required_final_norm ||
+diff --git a/src/models/roformer/runtime.cpp b/src/models/roformer/runtime.cpp
+index 0895a52..4f7630b 100644
+--- a/src/models/roformer/runtime.cpp
++++ b/src/models/roformer/runtime.cpp
+@@ -94,13 +94,18 @@ struct MaskGroupWeights {
+     LinearWeights projection;
+ };
+ 
++struct MaskEstimatorWeights {
++    std::vector<MaskBandWeights> mask_bands;
++    std::optional<LinearWeights> mask_first_batched;
++    std::vector<MaskGroupWeights> mask_groups;
++};
++
+ struct MelBandWeights {
+     std::shared_ptr<core::BackendWeightStore> store;
+     std::vector<BandSplitWeights> band_split;
+     std::vector<AxialTransformerWeights> layers;
+-    std::vector<MaskBandWeights> mask_bands;
+-    std::optional<LinearWeights> mask_first_batched;
+-    std::vector<MaskGroupWeights> mask_groups;
++    // One mask estimator per output stem, in config.instruments order.
++    std::vector<MaskEstimatorWeights> masks;
+     core::TensorValue final_norm;
+ };
+ 
+@@ -111,9 +116,8 @@ MelBandWeights load_mel_band_weights(
+     assets_ns::TensorStorageType storage_type) {
+     validate_roformer_weight_storage_type(storage_type);
+     const auto & config = assets.config;
+-    if (config.num_stems != 1) {
+-        throw std::runtime_error(
+-            config.family() + " native runtime currently supports only single-stem checkpoints");
++    if (config.num_stems < 1) {
++        throw std::runtime_error(config.family() + " num_stems must be positive");
+     }
+     const auto & source = *assets.tensor_source;
+ 
+@@ -227,114 +231,120 @@ MelBandWeights load_mel_band_weights(
+         weights.layers.push_back(std::move(axial));
+     }
+ 
+-    const int hidden_dim = config.dim * config.mlp_expansion_factor;
+-    // BS-RoFormer's first mask projection has the same shape for every band.
+-    // Pack the original weight bytes so one batched matmul can replace the
+-    // independent per-band matmul launches without requantizing the model.
+-    bool batch_mask_first = backend_type == core::BackendType::Cuda &&
+-        config.impl->cuda_batched_mask && config.mask_estimator_linear_layers == 2;
+-    if (batch_mask_first && storage_type == assets_ns::TensorStorageType::Native) {
+-        // Mixed-precision GGUFs can choose a different dtype per tensor. Keep
+-        // their existing per-band path unless each packed group is uniform.
+-        std::string first_dtype;
+-        std::string group_dtype;
+-        int64_t previous_dim = -1;
+-        for (size_t band = 0; band < config.band_input_dims.size(); ++band) {
+-            const std::string prefix = "mask_estimators.0.to_freqs." + std::to_string(band) + ".0.";
+-            const auto first = source.require_metadata(prefix + "0.weight").dtype;
+-            if (band == 0) first_dtype = first;
+-            if (first != first_dtype) batch_mask_first = false;
+-            const int64_t dim = config.band_input_dims[band];
+-            const auto second = source.require_metadata(prefix + "2.weight").dtype;
+-            if (dim != previous_dim) group_dtype = second;
+-            if (second != group_dtype) batch_mask_first = false;
+-            previous_dim = dim;
+-        }
+-    }
+-    if (batch_mask_first) {
+-        std::vector<std::byte> packed_weights;
+-        std::vector<float> packed_bias;
+-        ggml_type weight_type = GGML_TYPE_F32;
+-        for (size_t band = 0; band < config.band_input_dims.size(); ++band) {
+-            const std::string prefix = "mask_estimators.0.to_freqs." + std::to_string(band) + ".0.0";
+-            auto tensor = source.require_tensor(
+-                prefix + ".weight", storage_type, {hidden_dim, config.dim});
+-            if (band == 0) {
+-                weight_type = tensor.type;
+-            } else if (tensor.type != weight_type) {
+-                throw std::runtime_error("BS-RoFormer batched mask weights must share a dtype");
++    weights.masks.reserve(static_cast<size_t>(config.num_stems));
++    for (int stem = 0; stem < config.num_stems; ++stem) {
++    const std::string mask_prefix = "mask_estimators." + std::to_string(stem) + ".";
++    MaskEstimatorWeights mask;
++        const int hidden_dim = config.dim * config.mlp_expansion_factor;
++        // BS-RoFormer's first mask projection has the same shape for every band.
++        // Pack the original weight bytes so one batched matmul can replace the
++        // independent per-band matmul launches without requantizing the model.
++        bool batch_mask_first = backend_type == core::BackendType::Cuda &&
++            config.impl->cuda_batched_mask && config.mask_estimator_linear_layers == 2;
++        if (batch_mask_first && storage_type == assets_ns::TensorStorageType::Native) {
++            // Mixed-precision GGUFs can choose a different dtype per tensor. Keep
++            // their existing per-band path unless each packed group is uniform.
++            std::string first_dtype;
++            std::string group_dtype;
++            int64_t previous_dim = -1;
++            for (size_t band = 0; band < config.band_input_dims.size(); ++band) {
++                const std::string prefix = mask_prefix + "to_freqs." + std::to_string(band) + ".0.";
++                const auto first = source.require_metadata(prefix + "0.weight").dtype;
++                if (band == 0) first_dtype = first;
++                if (first != first_dtype) batch_mask_first = false;
++                const int64_t dim = config.band_input_dims[band];
++                const auto second = source.require_metadata(prefix + "2.weight").dtype;
++                if (dim != previous_dim) group_dtype = second;
++                if (second != group_dtype) batch_mask_first = false;
++                previous_dim = dim;
+             }
+-            packed_weights.insert(packed_weights.end(), tensor.bytes.begin(), tensor.bytes.end());
+-            auto bias = source.require_f32(prefix + ".bias", {hidden_dim});
+-            packed_bias.insert(packed_bias.end(), bias.begin(), bias.end());
+         }
+-        LinearWeights first;
+-        first.weight = weights.store->make_tensor(
+-            core::TensorShape::from_dims({config.num_bands, hidden_dim, config.dim}),
+-            weight_type, packed_weights.data(), packed_weights.size());
+-        first.bias = weights.store->make_f32(
+-            core::TensorShape::from_dims({config.num_bands, 1, hidden_dim}),
+-            std::move(packed_bias));
+-        weights.mask_first_batched = std::move(first);
+-
+-        for (size_t start = 0; start < config.band_input_dims.size();) {
+-            const int64_t output_dim = config.band_input_dims[start] * 2;
+-            size_t end = start + 1;
+-            while (end < config.band_input_dims.size() &&
+-                   config.band_input_dims[end] * 2 == output_dim) {
+-                ++end;
+-            }
+-            std::vector<std::byte> group_weights;
+-            std::vector<float> group_bias;
+-            ggml_type group_type = GGML_TYPE_F32;
+-            for (size_t band = start; band < end; ++band) {
+-                const std::string prefix = "mask_estimators.0.to_freqs." +
+-                    std::to_string(band) + ".0.2";
++        if (batch_mask_first) {
++            std::vector<std::byte> packed_weights;
++            std::vector<float> packed_bias;
++            ggml_type weight_type = GGML_TYPE_F32;
++            for (size_t band = 0; band < config.band_input_dims.size(); ++band) {
++                const std::string prefix = mask_prefix + "to_freqs." + std::to_string(band) + ".0.0";
+                 auto tensor = source.require_tensor(
+-                    prefix + ".weight", storage_type, {output_dim, hidden_dim});
+-                if (band == start) {
+-                    group_type = tensor.type;
+-                } else if (tensor.type != group_type) {
+-                    throw std::runtime_error("BS-RoFormer grouped mask weights must share a dtype");
++                    prefix + ".weight", storage_type, {hidden_dim, config.dim});
++                if (band == 0) {
++                    weight_type = tensor.type;
++                } else if (tensor.type != weight_type) {
++                    throw std::runtime_error("BS-RoFormer batched mask weights must share a dtype");
++                }
++                packed_weights.insert(packed_weights.end(), tensor.bytes.begin(), tensor.bytes.end());
++                auto bias = source.require_f32(prefix + ".bias", {hidden_dim});
++                packed_bias.insert(packed_bias.end(), bias.begin(), bias.end());
++            }
++            LinearWeights first;
++            first.weight = weights.store->make_tensor(
++                core::TensorShape::from_dims({config.num_bands, hidden_dim, config.dim}),
++                weight_type, packed_weights.data(), packed_weights.size());
++            first.bias = weights.store->make_f32(
++                core::TensorShape::from_dims({config.num_bands, 1, hidden_dim}),
++                std::move(packed_bias));
++            mask.mask_first_batched = std::move(first);
++
++            for (size_t start = 0; start < config.band_input_dims.size();) {
++                const int64_t output_dim = config.band_input_dims[start] * 2;
++                size_t end = start + 1;
++                while (end < config.band_input_dims.size() &&
++                       config.band_input_dims[end] * 2 == output_dim) {
++                    ++end;
+                 }
+-                group_weights.insert(group_weights.end(), tensor.bytes.begin(), tensor.bytes.end());
+-                auto bias = source.require_f32(prefix + ".bias", {output_dim});
+-                group_bias.insert(group_bias.end(), bias.begin(), bias.end());
++                std::vector<std::byte> group_weights;
++                std::vector<float> group_bias;
++                ggml_type group_type = GGML_TYPE_F32;
++                for (size_t band = start; band < end; ++band) {
++                    const std::string prefix = mask_prefix + "to_freqs." +
++                        std::to_string(band) + ".0.2";
++                    auto tensor = source.require_tensor(
++                        prefix + ".weight", storage_type, {output_dim, hidden_dim});
++                    if (band == start) {
++                        group_type = tensor.type;
++                    } else if (tensor.type != group_type) {
++                        throw std::runtime_error("BS-RoFormer grouped mask weights must share a dtype");
++                    }
++                    group_weights.insert(group_weights.end(), tensor.bytes.begin(), tensor.bytes.end());
++                    auto bias = source.require_f32(prefix + ".bias", {output_dim});
++                    group_bias.insert(group_bias.end(), bias.begin(), bias.end());
++                }
++                MaskGroupWeights group;
++                group.first_band = static_cast<int64_t>(start);
++                group.band_count = static_cast<int64_t>(end - start);
++                group.output_dim = output_dim;
++                group.projection.weight = weights.store->make_tensor(
++                    core::TensorShape::from_dims({group.band_count, output_dim, hidden_dim}),
++                    group_type, group_weights.data(), group_weights.size());
++                group.projection.bias = weights.store->make_f32(
++                    core::TensorShape::from_dims({group.band_count, 1, output_dim}),
++                    std::move(group_bias));
++                mask.mask_groups.push_back(std::move(group));
++                start = end;
+             }
+-            MaskGroupWeights group;
+-            group.first_band = static_cast<int64_t>(start);
+-            group.band_count = static_cast<int64_t>(end - start);
+-            group.output_dim = output_dim;
+-            group.projection.weight = weights.store->make_tensor(
+-                core::TensorShape::from_dims({group.band_count, output_dim, hidden_dim}),
+-                group_type, group_weights.data(), group_weights.size());
+-            group.projection.bias = weights.store->make_f32(
+-                core::TensorShape::from_dims({group.band_count, 1, output_dim}),
+-                std::move(group_bias));
+-            weights.mask_groups.push_back(std::move(group));
+-            start = end;
+         }
+-    }
+-    weights.mask_bands.reserve(static_cast<size_t>(config.band_input_dims.size()));
+-    for (size_t band = 0; !batch_mask_first && band < config.band_input_dims.size(); ++band) {
+-        const std::string prefix = "mask_estimators.0.to_freqs." + std::to_string(band) + ".0";
+-        MaskBandWeights band_weights;
+-        band_weights.layers.reserve(static_cast<size_t>(config.mask_estimator_linear_layers));
+-        for (int layer = 0; layer < config.mask_estimator_linear_layers; ++layer) {
+-            const int64_t in_dim = layer == 0 ? config.dim : hidden_dim;
+-            const int64_t out_dim = layer + 1 == config.mask_estimator_linear_layers
+-                ? config.band_input_dims[band] * 2
+-                : hidden_dim;
+-            band_weights.layers.push_back(binding::linear_from_source(
+-                *weights.store,
+-                source,
+-                prefix + "." + std::to_string(2 * layer),
+-                storage_type,
+-                out_dim,
+-                in_dim,
+-                true));
++        mask.mask_bands.reserve(static_cast<size_t>(config.band_input_dims.size()));
++        for (size_t band = 0; !batch_mask_first && band < config.band_input_dims.size(); ++band) {
++            const std::string prefix = mask_prefix + "to_freqs." + std::to_string(band) + ".0";
++            MaskBandWeights band_weights;
++            band_weights.layers.reserve(static_cast<size_t>(config.mask_estimator_linear_layers));
++            for (int layer = 0; layer < config.mask_estimator_linear_layers; ++layer) {
++                const int64_t in_dim = layer == 0 ? config.dim : hidden_dim;
++                const int64_t out_dim = layer + 1 == config.mask_estimator_linear_layers
++                    ? config.band_input_dims[band] * 2
++                    : hidden_dim;
++                band_weights.layers.push_back(binding::linear_from_source(
++                    *weights.store,
++                    source,
++                    prefix + "." + std::to_string(2 * layer),
++                    storage_type,
++                    out_dim,
++                    in_dim,
++                    true));
++            }
++            mask.mask_bands.push_back(std::move(band_weights));
+         }
+-        weights.mask_bands.push_back(std::move(band_weights));
++    weights.masks.push_back(std::move(mask));
+     }
+ 
+     if (config.has_final_norm) {
+@@ -635,7 +645,7 @@ core::TensorValue build_band_split(
+ core::TensorValue build_mask_output(
+     core::ModuleBuildContext & ctx,
+     const core::TensorValue & input,
+-    const MelBandWeights & weights,
++    const MaskEstimatorWeights & weights,
+     const RoformerArchitectureConfig & config) {
+     core::TensorValue batched_hidden;
+     if (weights.mask_first_batched.has_value()) {
+@@ -856,7 +866,7 @@ public:
+         auto build_ctx = make_build_context(execution_context, config.family().c_str());
+         constants_->begin_graph();
+         input_shape_ = core::TensorShape::from_dims({1, config.chunk_frames, config.total_band_input_dim});
+-        output_shape_ = core::TensorShape::from_dims({1, config.chunk_frames, config.total_band_input_dim});
++        output_shape_ = core::TensorShape::from_dims({config.num_stems, config.chunk_frames, config.total_band_input_dim});
+ 
+         auto input = core::make_tensor(build_ctx, GGML_TYPE_F32, input_shape_);
+         input_ = input.tensor;
+@@ -898,8 +908,14 @@ public:
+             x = build_reference_rms_norm(
+                 build_ctx, x, config.dim, weights_.final_norm);
+         }
+-        auto output = build_mask_output(build_ctx, x, weights_, config);
+-        output = ensure_contiguous(build_ctx, output);
++        // Stem-major masks: {num_stems, chunk_frames, total_band_input_dim}.
++        auto output = ensure_contiguous(build_ctx, build_mask_output(build_ctx, x, weights_.masks[0], config));
++        for (size_t stem = 1; stem < weights_.masks.size(); ++stem) {
++            auto stem_output = ensure_contiguous(
++                build_ctx, build_mask_output(build_ctx, x, weights_.masks[stem], config));
++            output = ensure_contiguous(
++                build_ctx, modules::ConcatModule({0}).build(build_ctx, output, stem_output));
++        }
+         output_ = output.tensor;
+         ggml_set_output(output_);
+         constants_->finish_graph();
+@@ -950,7 +966,7 @@ std::vector<float> build_band_features(
+ }
+ 
+ std::vector<float> apply_masks_to_stft(
+-    const std::vector<float> & raw_masks,
++    const float * raw_masks,
+     const engine::audio::AudioTensor & stft,
+     const RoformerArchitectureConfig & config) {
+     const int64_t channels = config.channels;
+@@ -1260,28 +1276,40 @@ void finish_runtime_chunk(
+         true, engine::audio::STFTPadMode::Reflect, engine::audio::STFTFamily::Kokoro};
+     const auto & window = engine::audio::get_cached_stft_window(stft_config);
+     const auto & stft = prepared.stft;
+-    const auto mask_start = Clock::now();
+-    auto masked = apply_masks_to_stft(raw_masks, stft, config);
+-    engine::debug::timing_log_scalar(
+-        log_prefix + "mask_apply_ms",
+-        engine::debug::elapsed_ms(mask_start));
+-    const auto istft_start = Clock::now();
+-    auto vocals = compute_roformer_istft(
+-        masked,
+-        window,
+-        config.channels,
+-        config.stft_freq_bins,
+-        config.chunk_frames,
+-        config.chunk_size,
+-        stft_config,
+-        fft_threads);
+-    engine::debug::timing_log_scalar(
+-        log_prefix + "istft_ms",
+-        engine::debug::elapsed_ms(istft_start));
+-    if (vocals.shape.size() != 2 || vocals.shape[0] != config.channels || vocals.shape[1] != config.chunk_size) {
+-        throw std::runtime_error("RoFormer ISTFT returned an unexpected waveform shape");
++    const size_t mask_stride = static_cast<size_t>(config.chunk_frames) *
++        static_cast<size_t>(config.total_band_input_dim);
++    const size_t stem_samples = static_cast<size_t>(config.channels) *
++        static_cast<size_t>(config.chunk_size);
++    if (raw_masks.size() != mask_stride * static_cast<size_t>(config.num_stems)) {
++        throw std::runtime_error("RoFormer mask output size does not match num_stems");
++    }
++    // Stem-major planar output: stem, channel, sample.
++    output_planar.resize(stem_samples * static_cast<size_t>(config.num_stems));
++    for (int stem = 0; stem < config.num_stems; ++stem) {
++        const auto mask_start = Clock::now();
++        auto masked = apply_masks_to_stft(raw_masks.data() + mask_stride * stem, stft, config);
++        engine::debug::timing_log_scalar(
++            log_prefix + "mask_apply_ms",
++            engine::debug::elapsed_ms(mask_start));
++        const auto istft_start = Clock::now();
++        auto waveform = compute_roformer_istft(
++            masked,
++            window,
++            config.channels,
++            config.stft_freq_bins,
++            config.chunk_frames,
++            config.chunk_size,
++            stft_config,
++            fft_threads);
++        engine::debug::timing_log_scalar(
++            log_prefix + "istft_ms",
++            engine::debug::elapsed_ms(istft_start));
++        if (waveform.shape.size() != 2 || waveform.shape[0] != config.channels || waveform.shape[1] != config.chunk_size) {
++            throw std::runtime_error("RoFormer ISTFT returned an unexpected waveform shape");
++        }
++        std::copy(waveform.values.begin(), waveform.values.end(),
++            output_planar.begin() + static_cast<std::ptrdiff_t>(stem_samples * stem));
+     }
+-    output_planar = std::move(vocals.values);
+ }
+ 
+ }  // namespace
+diff --git a/src/models/roformer/session.cpp b/src/models/roformer/session.cpp
+index e308f73..1a9c884 100644
+--- a/src/models/roformer/session.cpp
++++ b/src/models/roformer/session.cpp
+@@ -264,8 +264,17 @@ runtime::TaskResult RoformerSession::run(const runtime::TaskRequest & request) {
+         log_prefix + "audio_prepare_ms",
+         engine::debug::elapsed_ms(prepare_start));
+ 
+-    result_work_.assign(static_cast<size_t>(audio.channels * total_length), 0.0f);
+-    counter_work_.assign(static_cast<size_t>(audio.channels * total_length), 0.0f);
++    const int num_stems = config.num_stems;
++    const size_t lane_samples = static_cast<size_t>(audio.channels * total_length);
++    const size_t chunk_samples = static_cast<size_t>(audio.channels * chunk_size_);
++    std::vector<std::vector<float>> stem_results(static_cast<size_t>(num_stems));
++    for (auto & stem_result : stem_results) {
++        stem_result.assign(lane_samples, 0.0f);
++    }
++    counter_work_.assign(lane_samples, 0.0f);
++    // Every stem shares one window counter; later stems accumulate into scratch.
++    std::vector<float> scratch_counter(num_stems > 1 ? lane_samples : 0, 0.0f);
++    std::vector<float> stem_chunk(chunk_samples, 0.0f);
+ 
+     const engine::audio::AudioChunkSpec chunk_spec{
+         chunk_size_,
+@@ -285,7 +294,7 @@ runtime::TaskResult RoformerSession::run(const runtime::TaskRequest & request) {
+             total_length,
+             chunk,
+             chunk_spec);
+-    }, [&](size_t index, const std::vector<float> & vocals_planar) {
++    }, [&](size_t index, const std::vector<float> & stems_planar) {
+         const auto & chunk = chunk_plan[index];
+         const bool first_chunk = chunk.output_start_sample == 0;
+         const bool last_chunk = chunk.output_start_sample + chunk_size_ >= total_length;
+@@ -294,62 +303,72 @@ runtime::TaskResult RoformerSession::run(const runtime::TaskRequest & request) {
+             : (first_chunk
+                    ? first_chunk_window_
+                    : (last_chunk ? last_chunk_window_ : chunk_window_));
+-        engine::audio::overlap_add_planar_chunk(
+-            result_work_,
+-            counter_work_,
+-            vocals_planar,
+-            audio.channels,
+-            total_length,
+-            chunk,
+-            chunk_window,
+-            engine::audio::AudioChunkCounterMode::PerLane);
++        for (int stem = 0; stem < num_stems; ++stem) {
++            const auto begin = stems_planar.begin() + static_cast<std::ptrdiff_t>(chunk_samples * stem);
++            std::copy(begin, begin + static_cast<std::ptrdiff_t>(chunk_samples), stem_chunk.begin());
++            engine::audio::overlap_add_planar_chunk(
++                stem_results[static_cast<size_t>(stem)],
++                stem == 0 ? counter_work_ : scratch_counter,
++                stem_chunk,
++                audio.channels,
++                total_length,
++                chunk,
++                chunk_window,
++                engine::audio::AudioChunkCounterMode::PerLane);
++        }
+     });
+     engine::debug::timing_log_scalar(
+         log_prefix + "chunk_loop_ms",
+         engine::debug::elapsed_ms(chunk_loop_start));
+ 
+     const auto assemble_start = Clock::now();
+-    vocals_planar_work_ = result_work_;
+-    engine::audio::normalize_overlap_added_planar(
+-        vocals_planar_work_,
+-        counter_work_,
+-        audio.channels,
+-        total_length,
+-        engine::audio::AudioChunkCounterMode::PerLane);
+-
+-    int64_t final_frames = total_length;
+-    if (padded_borders) {
+-        std::vector<float> cropped(static_cast<size_t>(audio.channels * (total_length - 2 * border_)), 0.0f);
+-        final_frames = total_length - 2 * border_;
+-        for (int ch = 0; ch < audio.channels; ++ch) {
+-            const float * src = vocals_planar_work_.data() + static_cast<size_t>(ch * total_length + border_);
+-            float * dst = cropped.data() + static_cast<size_t>(ch * final_frames);
+-            std::copy(src, src + final_frames, dst);
+-        }
+-        vocals_planar_work_ = std::move(cropped);
+-    }
+-
+-    runtime::AudioBuffer vocals_audio;
+-    vocals_audio.sample_rate = audio.sample_rate;
+-    vocals_audio.channels = audio.channels;
+-    vocals_audio.samples = engine::audio::interleave_planar_channels(vocals_planar_work_, audio.channels, final_frames);
+-    runtime::AudioBuffer mixture_audio = audio;
+-    if (static_cast<int64_t>(mixture_audio.samples.size()) != final_frames * audio.channels) {
++    const int64_t final_frames = padded_borders ? total_length - 2 * border_ : total_length;
++    if (final_frames * audio.channels != static_cast<int64_t>(audio.samples.size())) {
+         throw std::runtime_error("RoFormer output length does not match the original mixture length");
+     }
+-    runtime::AudioBuffer instrumental_audio = derive_instrumental(mixture_audio, vocals_audio);
+-
+-    if (original_mono) {
+-        vocals_audio.samples = engine::audio::extract_interleaved_channel(vocals_audio.samples, vocals_audio.channels, 0);
+-        vocals_audio.channels = 1;
+-        instrumental_audio.samples =
+-            engine::audio::extract_interleaved_channel(instrumental_audio.samples, instrumental_audio.channels, 0);
+-        instrumental_audio.channels = 1;
+-    }
+-
+     runtime::TaskResult result_task;
+-    result_task.named_audio_outputs.push_back({"vocals", std::move(vocals_audio), {}});
+-    result_task.named_audio_outputs.push_back({"instrumental", std::move(instrumental_audio), {{"derived", "mixture_minus_vocals"}}});
++    for (int stem = 0; stem < num_stems; ++stem) {
++        auto & planar_stem = stem_results[static_cast<size_t>(stem)];
++        engine::audio::normalize_overlap_added_planar(
++            planar_stem,
++            counter_work_,
++            audio.channels,
++            total_length,
++            engine::audio::AudioChunkCounterMode::PerLane);
++        if (padded_borders) {
++            std::vector<float> cropped(static_cast<size_t>(audio.channels * final_frames), 0.0f);
++            for (int ch = 0; ch < audio.channels; ++ch) {
++                const float * src = planar_stem.data() + static_cast<size_t>(ch * total_length + border_);
++                std::copy(src, src + final_frames, cropped.data() + static_cast<size_t>(ch * final_frames));
++            }
++            planar_stem = std::move(cropped);
++        }
++        runtime::AudioBuffer stem_audio;
++        stem_audio.sample_rate = audio.sample_rate;
++        stem_audio.channels = audio.channels;
++        stem_audio.samples = engine::audio::interleave_planar_channels(planar_stem, audio.channels, final_frames);
++        planar_stem = {};
++        runtime::AudioBuffer instrumental_audio;
++        if (num_stems == 1) {
++            instrumental_audio = derive_instrumental(audio, stem_audio);
++        }
++        if (original_mono) {
++            stem_audio.samples = engine::audio::extract_interleaved_channel(stem_audio.samples, stem_audio.channels, 0);
++            stem_audio.channels = 1;
++        }
++        result_task.named_audio_outputs.push_back(
++            {config.instruments[static_cast<size_t>(stem)], std::move(stem_audio), {}});
++        if (num_stems == 1) {
++            if (original_mono) {
++                instrumental_audio.samples = engine::audio::extract_interleaved_channel(
++                    instrumental_audio.samples, instrumental_audio.channels, 0);
++                instrumental_audio.channels = 1;
++            }
++            result_task.named_audio_outputs.push_back(
++                {"instrumental", std::move(instrumental_audio),
++                 {{"derived", "mixture_minus_" + config.instruments.front()}}});
++        }
++    }
+     engine::debug::timing_log_scalar(
+         log_prefix + "assemble_ms",
+         engine::debug::elapsed_ms(assemble_start));
+diff --git a/tests/bs_roformer/convert_reference_ckpt.py b/tests/bs_roformer/convert_reference_ckpt.py
+index 02cac81..5a4a569 100644
+--- a/tests/bs_roformer/convert_reference_ckpt.py
++++ b/tests/bs_roformer/convert_reference_ckpt.py
+@@ -28,25 +28,43 @@ def load_config(path: Path) -> dict[str, Any]:
+     return payload
+ 
+ 
++# bs_roformer.BSRoformer's default band split (sums to 1025 bins for n_fft 2048).
++DEFAULT_FREQS_PER_BANDS = (
++    (2,) * 24 + (4,) * 12 + (12,) * 8 + (24,) * 8 + (48,) * 8 + (128, 129)
++)
++
++
+ def export_config_json(config: dict[str, Any]) -> dict[str, Any]:
+-    audio = dict(config["audio"])
++    audio = dict(config.get("audio") or {})
+     model = dict(config["model"])
+     inference = dict(config["inference"])
++    training = dict(config.get("training") or {})
++    num_stems = int(model["num_stems"])
++    instruments = [str(name) for name in training.get("instruments") or []]
++    target = training.get("target_instrument")
++    if num_stems == 1 and target:
++        instruments = [str(target)]
++    if len(instruments) != num_stems:
++        instruments = ["vocals"] if num_stems == 1 else []
++    if len(instruments) != num_stems:
++        raise RuntimeError(f"config lists {len(instruments)} instruments for {num_stems} stems")
++    freqs = model.get("freqs_per_bands") or DEFAULT_FREQS_PER_BANDS
+     return {
+         "model_type": "bs_roformer",
+-        "sample_rate": int(audio["sample_rate"]),
++        "sample_rate": int(audio.get("sample_rate", 44100)),
+         "stereo": bool(model["stereo"]),
+-        "chunk_size": int(audio["chunk_size"]),
++        "chunk_size": int(inference.get("chunk_size") or audio["chunk_size"]),
+         "batch_size": int(inference.get("batch_size", 1)),
+         "num_overlap": int(inference["num_overlap"]),
+         "normalize": False,
+         "dim": int(model["dim"]),
+         "depth": int(model["depth"]),
+-        "num_stems": int(model["num_stems"]),
+-        "time_transformer_depth": int(model["time_transformer_depth"]),
+-        "freq_transformer_depth": int(model["freq_transformer_depth"]),
++        "num_stems": num_stems,
++        "instruments": instruments,
++        "time_transformer_depth": int(model.get("time_transformer_depth", 1)),
++        "freq_transformer_depth": int(model.get("freq_transformer_depth", 1)),
+         "linear_transformer_depth": int(model.get("linear_transformer_depth", 0)),
+-        "freqs_per_bands": [int(value) for value in model["freqs_per_bands"]],
++        "freqs_per_bands": [int(value) for value in freqs],
+         "dim_head": int(model["dim_head"]),
+         "heads": int(model["heads"]),
+         "n_fft": int(model["stft_n_fft"]),

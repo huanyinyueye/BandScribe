@@ -8,13 +8,16 @@ Rules enforced here:
 - :func:`run_with_oom_backoff` retries a chunked inference call with smaller chunks on CUDA
   OOM and finally falls back to CPU.
 
-``torch`` is imported lazily so the rest of the package (and the unit tests) work without it.
+``torch`` is never imported here: the backend only uses it when a torch model already loaded it.
+Without torch (the default audio.cpp / ONNX engines run in their own processes or runtimes),
+GPU availability comes from audio.cpp's device list and VRAM numbers are 0.
 """
 
 from __future__ import annotations
 
 import gc
 import itertools
+import sys
 import threading
 import time
 from collections.abc import Callable, Iterator, Sequence
@@ -40,40 +43,44 @@ class GpuBackend(Protocol):
 
 
 class TorchBackend:
-    """Real backend. Every method degrades to a no-op / 0 when CUDA is unavailable."""
+    """Real backend. Every method degrades to a no-op / 0 when torch is not loaded or CUDA is
+    unavailable; ``available()`` then asks audio.cpp for a CUDA device."""
 
     def __init__(self, device_index: int = 0) -> None:
         self.device_index = device_index
 
     @staticmethod
     def _torch() -> Any | None:
-        try:
-            import torch
-        except ImportError:
-            return None
-        return torch
+        return sys.modules.get("torch")
 
-    def available(self) -> bool:
+    def _torch_cuda(self) -> bool:
         torch = self._torch()
         return bool(torch is not None and torch.cuda.is_available())
 
+    def available(self) -> bool:
+        if self._torch() is not None:
+            return self._torch_cuda()
+        from bandscribe.runtime import audiocpp
+
+        return audiocpp.cuda_device() is not None
+
     def reset_peak(self) -> None:
-        if self.available():
+        if self._torch_cuda():
             self._torch().cuda.reset_peak_memory_stats(self.device_index)
 
     def peak_bytes(self) -> int:
-        return self._torch().cuda.max_memory_allocated(self.device_index) if self.available() else 0
+        return self._torch().cuda.max_memory_allocated(self.device_index) if self._torch_cuda() else 0
 
     def allocated_bytes(self) -> int:
-        return self._torch().cuda.memory_allocated(self.device_index) if self.available() else 0
+        return self._torch().cuda.memory_allocated(self.device_index) if self._torch_cuda() else 0
 
     def total_bytes(self) -> int:
-        if not self.available():
+        if not self._torch_cuda():
             return 0
         return self._torch().cuda.get_device_properties(self.device_index).total_memory
 
     def empty_cache(self) -> None:
-        if self.available():
+        if self._torch_cuda():
             torch = self._torch()
             # cuBLAS keeps a workspace inside torch's allocator after the first matmul; it is
             # not model memory but would otherwise stay resident between models.

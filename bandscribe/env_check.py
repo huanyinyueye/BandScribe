@@ -127,11 +127,42 @@ def check_nvidia_smi(which: Callable[[str], str | None] = _which, run: Runner = 
     return Check("gpu", "ok", summary, {"gpus": gpus})
 
 
+def check_engine() -> Check:
+    """audio.cpp (separation, MuScriptor) and ONNX Runtime (beats): the default, torch-free path."""
+    from bandscribe.runtime import audiocpp
+
+    details: dict[str, Any] = {"runtime": str(audiocpp.runtime_dir() or "")}
+    try:
+        import onnxruntime as ort
+
+        details["onnx_providers"] = ort.get_available_providers()
+    except ImportError:
+        details["onnx_providers"] = []
+    if audiocpp.runtime_dir() is None:
+        return Check("engine", "warn", "audio.cpp runtime not found: falling back to torch",
+                     details, hint=f"set {audiocpp.ENV_RUNTIME} to the audio.cpp folder")
+    gpu = audiocpp.cuda_device()
+    details["devices"] = list(audiocpp.list_devices())
+    beats = "DirectML" if "DmlExecutionProvider" in details["onnx_providers"] else "CPU"
+    if gpu is None:
+        return Check("engine", "warn", f"audio.cpp on CPU (no CUDA device), beats on {beats}",
+                     details, hint="install the NVIDIA driver for GPU inference")
+    vram = gpu.get("memory", {}).get("total_bytes", 0) / 1024**3
+    return Check("engine", "ok", f"audio.cpp CUDA on {gpu.get('description')} "
+                 f"({vram:.1f} GB), beats on {beats}", details)
+
+
 def check_torch() -> Check:
     try:
         import torch
     except ImportError as exc:
-        return Check("torch", "fail", f"PyTorch not importable: {exc}", hint="run `uv sync`")
+        from bandscribe.runtime import audiocpp
+
+        if audiocpp.engine() == "audiocpp":
+            return Check("torch", "ok", "torch not installed (optional: only the torch "
+                         "engine and the extra separators need it)")
+        return Check("torch", "fail", f"PyTorch not importable: {exc}",
+                     hint="install the audio.cpp runtime or the torch extra")
     details: dict[str, Any] = {"version": torch.__version__,
                                "cuda_build": torch.version.cuda,
                                "cuda_available": torch.cuda.is_available()}
@@ -263,7 +294,7 @@ def check_disk(path: Path | None = None) -> Check:
 
 
 ALL_CHECKS: tuple[Callable[[], Check], ...] = (
-    check_os, check_python, check_uv, check_nvidia_smi, check_torch, check_ffmpeg,
+    check_os, check_python, check_uv, check_nvidia_smi, check_engine, check_torch, check_ffmpeg,
     check_node, check_alphatab, check_registry, check_disk,
 )
 

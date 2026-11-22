@@ -44,6 +44,28 @@ def family_of(group: str) -> str:
     return GROUP_FAMILY.get(group, "other")
 
 
+def groups_for(instrument: str) -> list[str] | None:
+    """Hard instrument constraint for a stem; None lets the model name what it hears."""
+    return FAMILY_GROUPS.get(instrument) if instrument not in ("mix", "other") else None
+
+
+def to_note(name: str, instrument: str, group: str, pitch: int, start: float,
+            end: float) -> Note | None:
+    """One MuScriptor note as a BandScribe Note (latency-corrected; drums get a fixed length)."""
+    family = family_of(group)
+    if instrument not in ("mix", "other") and family != instrument:
+        return None  # cannot happen with the hard constraint; kept as a guard
+    onset = float(start)
+    end = max(float(end), onset)
+    if family == "drums":
+        end = onset + DRUM_HIT_DURATION
+    else:
+        onset = max(0.0, onset - PITCHED_ONSET_LATENCY)
+        end = max(onset, end - PITCHED_ONSET_LATENCY)
+    return Note(onset, end, int(pitch), sources=(name,), instrument=family,
+                flags=(f"mus:{group}",))
+
+
 class MuScriptorTranscriber(Transcriber):
     def __init__(self, size: str = "medium", slot: ModelSlot = gpu_slot) -> None:
         if size != "medium":  # user decision 2026-11-12: medium is the only size used
@@ -106,9 +128,7 @@ class MuScriptorTranscriber(Transcriber):
         with self.slot.load(self.name, self._loader) as model:
             self._record_hash()
             for job_index, (audio, sr, instrument) in enumerate(jobs):
-                groups = None if instrument == "mix" else FAMILY_GROUPS.get(instrument)
-                if instrument not in ("mix", *FAMILY_GROUPS):
-                    groups = None  # e.g. the `other` stem: let the model name what it hears
+                groups = groups_for(instrument)
                 wav = torch.from_numpy(to_mono(audio))
                 notes: list[Note] = []
                 # MuScriptor prints per-chunk timings to stderr; keep the console readable.
@@ -122,22 +142,12 @@ class MuScriptorTranscriber(Transcriber):
                         else:
                             events.append(ev)
                 for ev in events:
-                    if not isinstance(ev, NoteEndEvent):
-                        continue
-                    start = ev.start_event
-                    family = family_of(start.instrument)
-                    if instrument not in ("mix", "other") and family != instrument:
-                        continue  # cannot happen with the hard constraint; kept as a guard
-                    onset = float(start.start_time)
-                    end = max(ev.end_time, start.start_time)
-                    if family == "drums":
-                        end = onset + DRUM_HIT_DURATION
-                    else:
-                        onset = max(0.0, onset - PITCHED_ONSET_LATENCY)
-                        end = max(onset, end - PITCHED_ONSET_LATENCY)
-                    notes.append(Note(onset, float(end), int(start.pitch),
-                                      sources=(self.name,), instrument=family,
-                                      flags=(f"mus:{start.instrument}",)))
+                    if isinstance(ev, NoteEndEvent):
+                        st = ev.start_event
+                        note = to_note(self.name, instrument, st.instrument, st.pitch,
+                                       st.start_time, ev.end_time)
+                        if note is not None:
+                            notes.append(note)
                 results.append(sort_notes(notes))
             del model
         rec = self.slot.records[-1]
@@ -148,3 +158,71 @@ class MuScriptorTranscriber(Transcriber):
 
     def transcribe(self, audio: np.ndarray, sr: int, instrument: str) -> list[Note]:
         return self.transcribe_many([(audio, sr, instrument)])[0]
+
+
+class AudiocppMuScriptorTranscriber(MuScriptorTranscriber):
+    """MuScriptor through audio.cpp: all jobs run as one request sequence (one model load)."""
+
+    def _snapshot(self) -> Path:
+        from bandscribe.models.prepare import muscriptor_snapshot
+
+        try:
+            path, self.model_sha256 = muscriptor_snapshot(self.size)
+        except HashMismatchError:
+            raise
+        except Exception as exc:  # noqa: BLE001 - gated, offline or missing: skip the backend
+            self.unavailable_reason = (f"MuScriptor weights unavailable ({exc}); accept the "
+                                       "licence on Hugging Face and run `uvx hf auth login`")
+            raise TranscriberUnavailable(self.unavailable_reason) from exc
+        return path
+
+    def transcribe_many(self, jobs: list[tuple[np.ndarray, int, str]],
+                        progress=None) -> list[list[Note]]:
+        import json
+        import tempfile
+
+        import soundfile as sf
+
+        from bandscribe.runtime import audiocpp
+
+        model_dir = self._snapshot()
+        with tempfile.TemporaryDirectory(prefix="bandscribe-mus-") as tmp:
+            tmp_dir = Path(tmp)
+            requests = []
+            for i, (audio, sr, instrument) in enumerate(jobs):
+                sf.write(tmp_dir / f"job{i}.wav", to_mono(audio), sr, subtype="FLOAT")
+                options = {"output_format": "json"}
+                groups = groups_for(instrument)
+                if groups:
+                    options["instruments"] = ",".join(groups)
+                requests.append({"id": f"job{i}", "audio": f"job{i}.wav", "options": options})
+            (tmp_dir / "requests.json").write_text(json.dumps({"requests": requests}))
+            outputs = [tmp_dir / f"notes_job{i}.json" for i in range(len(jobs))]
+
+            def done(n: int) -> None:
+                if progress is not None:
+                    progress(n / len(jobs), f"{self.name}: {jobs[min(n, len(jobs) - 1)][2]}")
+
+            with self.slot.load(self.name, lambda: None):
+                ran = audiocpp.run("midi", "muscriptor", model_dir,
+                             ["--request-sequence", str(tmp_dir / "requests.json"),
+                              "--text-out", str(tmp_dir / "notes.json")],
+                             tmp_dir / "log.txt", watch=outputs, on_done=done)
+            results = []
+            for (_, _, instrument), out in zip(jobs, outputs, strict=True):
+                events = json.loads(out.read_text(encoding="utf-8"))
+                starts = {e["index"]: e for e in events if e["type"] == "start"}
+                notes = []
+                for e in events:
+                    st = starts.get(e.get("start_event_index")) if e["type"] == "end" else None
+                    if st is not None:
+                        note = to_note(self.name, instrument, st["instrument"], st["pitch"],
+                                       st["start_time"], e["end_time"])
+                        if note is not None:
+                            notes.append(note)
+                results.append(sort_notes(notes))
+        rec = self.slot.records[-1]
+        self.last_run = {"device": f"{ran['backend']} (audio.cpp)",
+                         "seconds": round(rec.seconds, 2), "peak_vram_gb": 0.0,
+                         "oom_retries": 0, "jobs": len(jobs), "includes_model_load": True}
+        return results

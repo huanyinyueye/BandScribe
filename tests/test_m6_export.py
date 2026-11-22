@@ -12,7 +12,7 @@ import pytest
 from bandscribe.analysis.meter import analyze_meter
 from bandscribe.analysis.sections import Section
 from bandscribe.analysis.tempo import build_tempo_map
-from bandscribe.notation.export_gp import build_payload, export_gp, read_gp, verify
+from bandscribe.notation.export_gp import export_gp, read_gp
 from bandscribe.notation.export_gp5 import export_gp5
 from bandscribe.notation.export_midi import export_midi
 from bandscribe.notation.export_musicxml import export_musicxml, measure_durations
@@ -83,7 +83,7 @@ def test_gp_export_reads_back_identically(score, tmp_path):
     report = export_gp(score, tmp_path / "song.gp")
     assert report.path.stat().st_size == report.bytes > 1000
     assert report.mismatches == [] and report.verified
-    s = report.summary
+    s = read_gp(report.path)
     assert [(b["num"], b["den"]) for b in s["masterBars"]] == [(4, 4), (4, 4), (7, 8), (7, 8)]
     assert s["masterBars"][0]["section"] == "Section 1" and s["masterBars"][2]["section"] == "Section 2"
     assert s["masterBars"][0]["tempo"] == 120 and s["masterBars"][2]["tempo"] == 150
@@ -95,8 +95,7 @@ def test_gp_export_reads_back_identically(score, tmp_path):
     assert any(n[4] == 1 for n in g["notes"])  # the tied continuation survived
     assert s["tracks"][2]["percussion"] and {n[1] for n in s["tracks"][2]["notes"]} == {36, 38, 42, 46, 49}
     assert sorted(n[1] for n in s["tracks"][3]["notes"]) == [69, 72]
-    again = read_gp(report.path)
-    assert again["tracks"][0]["notes"] == g["notes"]
+    assert report.notes_written == sum(len(t["notes"]) for t in s["tracks"])
 
 
 def test_gp_piano_large_tied_chord_retains_pitches(tmp_path):
@@ -121,7 +120,7 @@ def test_gp_integer_tempos_do_not_accumulate_timing_error(tmp_path):
     report = export_gp(score, tmp_path / "tempo.gp")
     assert report.verified, report.mismatches
     elapsed, bpm = 0.0, None
-    for bar, written in zip(bars, report.summary["masterBars"], strict=True):
+    for bar, written in zip(bars, read_gp(report.path)["masterBars"], strict=True):
         # Tempo can change inside a bar (per-beat corrections at ratio positions).
         pos = 0.0
         for ratio, value in [*written["tempos"], [1.0, None]]:
@@ -142,24 +141,6 @@ def test_gp_keeps_a_real_small_tempo_change_visible(score, tmp_path):
              if a.findtext("Type") == "Tempo"]
     assert any(a.findtext("Visible") == "true" and
                int(a.findtext("Value").split()[0]) in (123, 124, 125) for a in tempo[1:])
-
-
-def test_gp_verify_detects_differences(score, tmp_path):
-    payload = build_payload(score)
-    report = export_gp(score, tmp_path / "song.gp")
-    summary = report.summary
-    assert verify(payload, summary) == []
-    broken = {**summary, "tracks": [dict(t) for t in summary["tracks"]]}
-    broken["tracks"][0]["notes"] = summary["tracks"][0]["notes"][:-1]
-    assert any("notes differ" in m for m in verify(payload, broken))
-    broken2 = {**summary, "masterBars": summary["masterBars"][:-1]}
-    assert any("time signatures" in m for m in verify(payload, broken2))
-
-
-def test_gp_payload_marks_low_confidence(score):
-    payload = build_payload(score)
-    texts = [b["text"] for beats in payload["tracks"][0]["bars"] for b in beats if b["text"]]
-    assert texts == ["?"]
 
 
 def test_gp5_export_round_trip(score, tmp_path):

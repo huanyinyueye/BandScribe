@@ -8,17 +8,20 @@ GPU); further jobs wait in a queue.
 from __future__ import annotations
 
 import hashlib
+import hmac
 import json
+import math
 import os
 import queue
+import sys
 import threading
 import time
 import uuid
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, File, HTTPException, UploadFile, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, File, Header, HTTPException, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -31,6 +34,7 @@ HOST = "127.0.0.1"
 PROJECTS_DIR = Path.home() / ".cache" / "bandscribe" / "projects"
 FRONTEND_DIST = Path(__file__).resolve().parent.parent.parent / "gui" / "dist"
 SUPPORTED = {".mp3", ".wav", ".flac"}
+SUPPORTED_SCORES = {".gp", ".gp3", ".gp4", ".gp5", ".gpx"}
 # Rough share of the total time per stage, used only for the overall progress bar and ETA.
 STAGE_WEIGHT = {"load": 0.01, "beats": 0.03, "separate": 0.30, "attribute": 0.03,
                 "transcribe": 0.55, "tab": 0.01, "notation": 0.03, "qa": 0.01, "export": 0.03}
@@ -89,11 +93,45 @@ class OverrideRequest(BaseModel):
     state: str | None = None  # "absent" or None to clear
 
 
-def _vram_gb() -> float:
-    try:
-        import torch
+class AlignmentPoint(BaseModel):
+    beat: float
+    seconds: float
 
-        return torch.cuda.memory_allocated() / 1024**3 if torch.cuda.is_available() else 0.0
+
+class AlignmentRequest(BaseModel):
+    score_hash: str
+    offset: float = 0.0
+    anchors: list[AlignmentPoint] = []
+    revision: int = 0
+
+
+class CorrectedNote(BaseModel):
+    index: int
+    string: int | None
+    fret: int | None
+    pos_q: str | None = None
+    dur_q: str | None = None
+
+
+class AddedNote(BaseModel):
+    string: int
+    fret: int
+    pos_q: str
+    dur_q: str
+
+
+class CorrectionRequest(BaseModel):
+    score_hash: str
+    revision: int
+    notes: list[CorrectedNote]
+    delete: list[int] = []
+    add: list[AddedNote] = []
+
+
+def _vram_gb() -> float:
+    torch = sys.modules.get("torch")  # never import torch just to show a number
+    try:
+        return torch.cuda.memory_allocated() / 1024**3 if torch is not None and torch.cuda.is_available() else 0.0
     except Exception:  # noqa: BLE001 - VRAM display is best effort
         return 0.0
 
@@ -106,6 +144,10 @@ class JobManager:
         self.jobs: dict[str, Job] = {}
         self._queue: queue.Queue[Job] = queue.Queue()
         self._runner = runner
+        self.stopping = False
+        self.jobs_lock = threading.Lock()
+        self.alignment_lock = threading.Lock()
+        self.correction_lock = threading.Lock()
         self._worker = threading.Thread(target=self._loop, daemon=True, name="bandscribe-jobs")
         self._worker.start()
 
@@ -124,10 +166,13 @@ class JobManager:
         return files[0]
 
     def submit(self, project: str, config: dict[str, Any]) -> Job:
-        job = Job(uuid.uuid4().hex[:12], project, config)
-        self.jobs[job.id] = job
-        self._queue.put(job)
-        return job
+        with self.jobs_lock:
+            if self.stopping:
+                raise HTTPException(409, "application is shutting down")
+            job = Job(uuid.uuid4().hex[:12], project, config)
+            self.jobs[job.id] = job
+            self._queue.put(job)
+            return job
 
     def active_for(self, project: str) -> Job | None:
         for job in reversed(list(self.jobs.values())):
@@ -254,6 +299,17 @@ def create_app(projects_dir: Path | None = None, runner=None,
                       "under CC BY-NC 4.0 (MuScriptor) and CC BY-NC-SA 4.0 (ADTOF). "
                       "Output must not be used commercially."}
 
+    @app.post("/api/shutdown")
+    def shutdown(x_bandscribe_shutdown: str = Header(default="")) -> dict[str, str]:
+        token = os.environ.get("BANDSCRIBE_SHUTDOWN_TOKEN", "")
+        if not token or not hmac.compare_digest(token, x_bandscribe_shutdown):
+            raise HTTPException(403, "shutdown is unavailable")
+        stop = getattr(app.state, "shutdown", None)
+        if stop is None:
+            raise HTTPException(503, "shutdown is unavailable")
+        stop()
+        return {"status": "stopping"}
+
     @app.get("/api/doctor")
     def doctor() -> dict[str, Any]:
         from bandscribe import env_check
@@ -311,14 +367,216 @@ def create_app(projects_dir: Path | None = None, runner=None,
                 "qa": _read_json(run / "qa.json"),
                 "attribution": _read_json(run / "notes" / "attribution.json"),
                 "score": _score_summary(run / "score.json"),
+                "reference": _read_json(pdir / "reference.json"),
                 "exports": sorted(p.name for p in (run / "exports").glob("*")) if (run / "exports").is_dir() else [],
                 "job": active.public() if active else None}
+
+    @app.post("/api/projects/{project}/reference")
+    async def upload_reference(project: str, file: UploadFile = File(...)) -> dict[str, str]:
+        pdir = manager.project_dir(project)
+        name = Path((file.filename or "").replace("\\", "/")).name
+        suffix = Path(name).suffix.lower()
+        if suffix not in SUPPORTED_SCORES:
+            raise HTTPException(400, "use a Guitar Pro file (.gp, .gp3, .gp4, .gp5, .gpx)")
+        data = await file.read(50 * 1024 * 1024 + 1)
+        if not data or len(data) > 50 * 1024 * 1024:
+            raise HTTPException(400, "score is empty or exceeds 50 MiB")
+        digest = hashlib.sha256(data).hexdigest()
+        directory = pdir / "reference"
+        directory.mkdir(exist_ok=True)
+        target = directory / f"{digest}{suffix}"
+        if not target.exists():
+            target.write_bytes(data)
+        ref = {"filename": name, "path": f"reference/{target.name}"}
+        temp = pdir / f"reference.{uuid.uuid4().hex}.tmp"
+        try:
+            temp.write_text(json.dumps(ref, ensure_ascii=False), encoding="utf-8")
+            temp.replace(pdir / "reference.json")
+        finally:
+            temp.unlink(missing_ok=True)
+        return ref
+
+    @app.delete("/api/projects/{project}/reference")
+    def clear_reference(project: str) -> dict[str, bool]:
+        pdir = manager.project_dir(project)
+        (pdir / "reference.json").unlink(missing_ok=True)
+        return {"cleared": True}
 
     @app.post("/api/projects/{project}/analyze")
     def analyze(project: str) -> dict[str, Any]:
         if any(j.status == "running" for j in manager.jobs.values()):
             raise HTTPException(409, "a transcription is running; the GPU is busy")
         return _quick_analysis(manager.input_file(project))
+
+    @app.get("/api/projects/{project}/alignment")
+    def get_alignment(project: str) -> dict[str, Any]:
+        pdir = manager.project_dir(project)
+        score = pdir / "run" / "score.json"
+        if not score.is_file():
+            raise HTTPException(404, "project has no score")
+        score_hash = hashlib.sha256(score.read_bytes()).hexdigest()
+        saved = _read_json(pdir / "alignments" / f"{score_hash}.json")
+        if not saved:
+            legacy = _read_json(pdir / "alignment.json")
+            saved = legacy if legacy and legacy.get("score_hash") == score_hash else None
+        if saved and saved.get("score_hash") == score_hash:
+            return {**saved, "revision": saved.get("revision", 0), "stale": False}
+        previous = (pdir / "alignment.json").is_file() or any((pdir / "alignments").glob("*.json"))
+        return {"score_hash": score_hash, "offset": 0.0, "anchors": [], "revision": 0, "stale": previous}
+
+    def correction_score(project: str):
+        from bandscribe.notation.score_model import Score
+
+        pdir = manager.project_dir(project)
+        source = pdir / "run" / "score.json"
+        if not source.is_file():
+            raise HTTPException(404, "project has no score")
+        digest = hashlib.sha256(source.read_bytes()).hexdigest()
+        target = pdir / "corrections" / digest / "score.json"
+        data = _read_json(target)
+        return pdir, digest, Score.from_dict(data["score"]) if data else Score.load(source), data["revision"] if data else 0
+
+    def correction_view(score, digest: str, revision: int, track_id: str, bar: int) -> dict[str, Any]:
+        track = next((t for t in score.tracks if t.id == track_id and t.family == "guitar" and t.kind == "tab"), None)
+        if track is None or not 0 <= bar < len(score.bars):
+            raise HTTPException(404, "guitar track or bar not found")
+        return {"score_hash": digest, "revision": revision, "track_id": track_id, "bar": bar,
+                "tuning": list(track.tuning), "notes": [
+                    {"index": i, "pitch": n.pitch, "string": n.string, "fret": n.fret,
+                     "pos_q": float(n.pos_q), "dur_q": float(n.dur_q)}
+                    for i, n in enumerate(track.notes) if n.bar == bar]}
+
+    @app.get("/api/projects/{project}/corrections/{track_id}/{bar}")
+    def get_corrections(project: str, track_id: str, bar: int) -> dict[str, Any]:
+        with manager.correction_lock:
+            _, digest, score, revision = correction_score(project)
+            return correction_view(score, digest, revision, track_id, bar)
+
+    @app.put("/api/projects/{project}/corrections/{track_id}/{bar}")
+    def put_corrections(project: str, track_id: str, bar: int, req: CorrectionRequest) -> dict[str, Any]:
+        from bandscribe.notation.note_edit import note_timing
+        from bandscribe.notation.score_model import ScoreNote
+
+        with manager.correction_lock:
+            pdir, digest, score, revision = correction_score(project)
+            if digest != req.score_hash or revision != req.revision or manager.active_for(project):
+                raise HTTPException(409, "score or corrections changed; reload before saving")
+            view = correction_view(score, digest, revision, track_id, bar)
+            track = next(t for t in score.tracks if t.id == track_id)
+            valid = {n["index"] for n in view["notes"]}
+            if len(set(req.delete)) != len(req.delete) or any(i not in valid for i in req.delete):
+                raise HTTPException(400, "invalid or duplicate deleted note")
+            seen = set()
+            for update in req.notes:
+                if update.index not in valid or update.index in seen or update.index in req.delete:
+                    raise HTTPException(400, "invalid or duplicate note index")
+                seen.add(update.index)
+                note = track.notes[update.index]
+                if update.string is None and update.fret is None and note.string is None and note.fret is None:
+                    continue
+                if update.string is None or update.fret is None or not 1 <= update.string <= len(track.tuning) or not 0 <= update.fret <= 36:
+                    raise HTTPException(400, "invalid string or fret")
+                pitch = track.tuning[update.string - 1] + update.fret
+                if pitch > 127:
+                    raise HTTPException(400, "pitch exceeds MIDI range")
+                try:
+                    pos, dur = note_timing(update.pos_q if update.pos_q is not None else str(note.pos_q),
+                                           update.dur_q if update.dur_q is not None else str(note.dur_q),
+                                           score.bars[bar].length_q)
+                except ValueError as exc:
+                    raise HTTPException(400, str(exc)) from exc
+                if (update.string, update.fret, pos, dur) != (note.string, note.fret, note.pos_q, note.dur_q):
+                    track.notes[update.index] = replace(note, string=update.string, fret=update.fret,
+                                                        pitch=pitch, pos_q=pos, dur_q=dur, low_conf=False)
+            for index in sorted(req.delete, reverse=True):
+                del track.notes[index]
+            for addition in req.add:
+                if not 1 <= addition.string <= len(track.tuning) or not 0 <= addition.fret <= 36:
+                    raise HTTPException(400, "invalid string or fret")
+                pitch = track.tuning[addition.string - 1] + addition.fret
+                if pitch > 127:
+                    raise HTTPException(400, "pitch exceeds MIDI range")
+                try:
+                    pos, dur = note_timing(addition.pos_q, addition.dur_q, score.bars[bar].length_q)
+                except ValueError as exc:
+                    raise HTTPException(400, str(exc)) from exc
+                spec = score.bars[bar]
+                onset = spec.start_time + float(pos) * 60 / spec.bpm
+                track.notes.append(ScoreNote(bar=bar, pos_q=pos, dur_q=dur, pitch=pitch,
+                                             string=addition.string, fret=addition.fret,
+                                             sources=("human",), onset=onset,
+                                             offset=onset + float(dur) * 60 / spec.bpm))
+            if req.add or req.delete:
+                track.notes.sort(key=lambda n: (n.bar, n.pos_q, n.pitch, n.string or 0))
+            directory = pdir / "corrections" / digest
+            directory.mkdir(parents=True, exist_ok=True)
+            target = directory / "score.json"
+            temp = directory / f"{uuid.uuid4().hex}.tmp"
+            try:
+                temp.write_text(json.dumps({"revision": revision + 1, "score": score.to_dict()}), encoding="utf-8")
+                temp.replace(target)
+            finally:
+                temp.unlink(missing_ok=True)
+            return correction_view(score, digest, revision + 1, track_id, bar)
+
+    @app.post("/api/projects/{project}/corrections/export")
+    def export_corrections(project: str) -> dict[str, str]:
+        from bandscribe.notation.export_gp import export_gp
+
+        with manager.correction_lock:
+            pdir, digest, score, revision = correction_score(project)
+            if revision == 0 or manager.active_for(project):
+                raise HTTPException(409, "save corrections before exporting")
+            directory = pdir / "corrections" / digest
+            target = directory / "corrected.gp"
+            temp = directory / f"{uuid.uuid4().hex}.gp"
+            try:
+                report = export_gp(score, temp)
+                if not report.verified:
+                    raise HTTPException(500, "corrected score failed read-back verification")
+                temp.replace(target)
+            finally:
+                temp.unlink(missing_ok=True)
+            return {"path": f"corrections/{digest}/corrected.gp"}
+
+    @app.put("/api/projects/{project}/alignment")
+    def put_alignment(project: str, req: AlignmentRequest) -> dict[str, Any]:
+        pdir = manager.project_dir(project)
+        score = pdir / "run" / "score.json"
+        if not score.is_file():
+            raise HTTPException(404, "project has no score")
+        score_hash = hashlib.sha256(score.read_bytes()).hexdigest()
+        if req.score_hash != score_hash or manager.active_for(project):
+            raise HTTPException(409, "score changed or transcription is running; reload before saving alignment")
+        if not math.isfinite(req.offset) or abs(req.offset) > 3600:
+            raise HTTPException(400, "invalid alignment offset")
+        points = sorted(req.anchors, key=lambda point: point.beat)
+        if any(not math.isfinite(p.beat) or not math.isfinite(p.seconds) or p.beat < 0 or p.seconds < 0 for p in points):
+            raise HTTPException(400, "invalid alignment anchor")
+        if any(b.beat <= a.beat or b.seconds <= a.seconds for a, b in zip(points, points[1:], strict=False)):
+            raise HTTPException(400, "alignment beats and times must increase")
+        with manager.alignment_lock:
+            if not score.is_file() or hashlib.sha256(score.read_bytes()).hexdigest() != score_hash or manager.active_for(project):
+                raise HTTPException(409, "score changed or transcription is running; reload before saving alignment")
+            directory = pdir / "alignments"
+            directory.mkdir(exist_ok=True)
+            target = directory / f"{score_hash}.json"
+            current = _read_json(target)
+            if current is None:
+                legacy = _read_json(pdir / "alignment.json")
+                current = legacy if legacy and legacy.get("score_hash") == score_hash else None
+            revision = current.get("revision", 0) if current else 0
+            if req.revision != revision:
+                raise HTTPException(409, "alignment changed in another window; reload before saving")
+            saved = {"score_hash": score_hash, "offset": req.offset, "revision": revision + 1,
+                     "anchors": [p.model_dump() for p in points]}
+            temp = directory / f"{uuid.uuid4().hex}.tmp"
+            try:
+                temp.write_text(json.dumps(saved, ensure_ascii=False, indent=2), encoding="utf-8")
+                temp.replace(target)
+            finally:
+                temp.unlink(missing_ok=True)
+        return {**saved, "stale": False}
 
     @app.post("/api/projects/{project}/run")
     def run(project: str, req: RunRequest) -> dict[str, Any]:
@@ -445,6 +703,19 @@ def serve(port: int = 8765, open_window: bool = True, browser: bool = False) -> 
     url = f"http://{HOST}:{port}"
     config = uvicorn.Config(app, host=HOST, port=port, log_level="warning")
     server = uvicorn.Server(config)
+    def request_shutdown() -> None:
+        manager = app.state.manager
+        with manager.jobs_lock:
+            manager.stopping = True
+            for job in list(manager.jobs.values()):
+                if job.status in ("queued", "running"):
+                    job.cancel_requested = True
+        def finish() -> None:
+            while any(job.status in ("queued", "running") for job in list(manager.jobs.values())):
+                time.sleep(0.2)
+            server.should_exit = True
+        threading.Thread(target=finish, daemon=True).start()
+    app.state.shutdown = request_shutdown
     if not open_window:
         server.run()
         return

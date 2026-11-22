@@ -195,6 +195,14 @@ low-confidence ratio report, `report.html`.
 
 ## 5. Known limits
 
+The local GUI also keeps alignment and guitar note corrections separately from the generated
+`run/score.json`. Alignment uses quarter-note positions, a score hash and a revision; a stale
+write returns HTTP 409. Guitar correction endpoints read and edit a bar's notes, including
+string, fret, position and duration, and can insert or delete notes. They export a separate
+verified `.gp` under `corrections/<score hash>/`. Corrections are tied to the source score
+hash and are not automatically carried across a new transcription. Imported reference scores
+are kept separately and are not editable through those correction endpoints.
+
 - Guitar is one track, "Guitar (combined)": no lead / rhythm or left / right split.
 - One voice per track: a chord lasts until the next onset; overlapping sustain is shortened.
 - MusicXML has one staff per part with string / fret as technical marks, no separate TAB staff.

@@ -4,29 +4,44 @@ version = "0.1.0"
 description = "Local, quality-first band music transcription: audio -> full score + per-instrument parts (GP8 .gp, GP5, MIDI, MusicXML, PDF)"
 readme = "README.md"
 requires-python = ">=3.11,<3.12"
+# Default engine: audio.cpp (separation, MuScriptor) + ONNX Runtime (beats, Basic Pitch, ADTOF).
+# No torch here; weights download on first use (AGENTS.md).
 dependencies = [
     "typer>=0.12",
     "pyyaml>=6.0",
     "imageio-ffmpeg>=0.5",
-    "torch>=2.5",
     "numpy>=1.26",
-    "beat-this>=1.1.0",
     "mir-eval>=0.8.2",
     "soundfile>=0.14.0",
+    "soxr>=1.0",
     "scipy>=1.17.1",
+    "librosa>=0.11.0",
+    "basic-pitch>=0.4.0",
+    "onnxruntime-directml>=1.24 ; sys_platform == 'win32'",
+    "onnxruntime>=1.24 ; sys_platform != 'win32'",
+    "safetensors>=0.8",
+    "huggingface-hub>=1.0",
+    "mido>=1.3.3",
+    "pyguitarpro>=0.11",
+    "pywebview>=6.2.1",
+    "fastapi>=0.115",
+    "uvicorn>=0.30",
+    "websockets>=13",
+    "python-multipart>=0.0.20",
+]
+
+[project.optional-dependencies]
+# Advanced engine (BANDSCRIBE_ENGINE=torch) and the separators audio.cpp does not run yet.
+torch = [
+    "torch>=2.5",
+    "beat-this>=1.1.0",
     "bs-roformer-infer>=0.1.5",
     "ml-collections>=1.1.0",
     "omegaconf>=2.4.0",
     "beartype>=0.23.1",
     "demucs>=4.0.1",
     "hyper-connections>=0.4.11",
-    "librosa>=0.11.0",
     "muscriptor>=0.4.0",
-    "basic-pitch>=0.4.0",
-    "onnxruntime>=1.31.1",
-    "mido>=1.3.3",
-    "pyguitarpro>=0.11",
-    "pywebview>=6.2.1",
 ]
 
 [project.scripts]
@@ -34,6 +49,8 @@ bandscribe = "bandscribe.cli:app"
 
 [dependency-groups]
 dev = ["pytest>=8", "ruff>=0.6"]
+# Only for scripts/export_beat_this_onnx.py (needs the torch extra too).
+onnx-export = ["onnx>=1.17", "onnxscript>=0.3"]
 
 [build-system]
 requires = ["hatchling"]

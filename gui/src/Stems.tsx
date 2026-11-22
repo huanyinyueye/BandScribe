@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { api, Config, Project } from './api';
 import { familyLabel, fmtTime } from './App';
+import { familyIcon, I } from './icons';
 
 const ORDER = ['vocals', 'guitar', 'piano', 'other', 'bass', 'drums'];
 
@@ -58,41 +59,47 @@ export function StemsPage({ project, config, running, onOverride, onRerun }: {
 
   return (
     <>
-      <h2>分軌檢視</h2>
-      <div className="panel">
-        <div className="row">
-          <button className="btn primary" onClick={toggle}>{playing ? '暫停' : '播放'}</button>
-          <span>{fmtTime(time)} / {fmtTime(duration)}</span>
-          <input type="range" min={0} max={duration} step={0.1} value={time} style={{ flex: 1 }}
+      <div className="view-h"><h1>分軌</h1></div>
+      <section className="sec">
+        <div className="player">
+          <button className="tbtn play" onClick={toggle} aria-label={playing ? '暫停' : '播放'} title={playing ? '暫停' : '播放'}>
+            {playing ? <I.pause /> : <I.play />}
+          </button>
+          <span className="pl-time mono">{fmtTime(time)}</span>
+          <input className="pl-range" type="range" min={0} max={duration} step={0.1} value={time}
             aria-label="播放位置" onChange={(e) => seek(Number(e.target.value))} />
+          <span className="pl-time mono dim">{fmtTime(duration)}</span>
         </div>
-        <div className="small muted" style={{ marginTop: 8 }}>
+        <div className="legends">
           <span className="legend"><i style={{ background: heatColor(1, true) }} />兩個分離模型一致</span>
-          <span className="legend"><i style={{ background: heatColor(0, true) }} />模型不一致（該段音符會降低信心）</span>
+          <span className="legend"><i style={{ background: heatColor(0, true) }} />不一致，該段音符信心降低</span>
           <span className="legend"><i style={{ background: 'var(--line)' }} />無聲</span>
-          點擊色帶可跳到該位置。
+          <span className="dim">點色帶跳到該位置</span>
         </div>
-      </div>
-      <div className="panel">
+      </section>
+      <section className="sec">
         {names.map((n) => {
           const s = stems[n];
           const absent = config.stem_overrides?.[n] === 'absent';
           const conf = s.confidence;
           return (
             <div className="stem" key={n}>
-              <div>
-                <div className="name">{familyLabel(n)}</div>
-                <div className="small muted">
-                  {s.activity ? (s.activity.present ? `有訊號・${s.activity.relative_db} dB` : '幾乎無聲，未轉譜') : ''}
+              <div className="stem-id">
+                {familyIcon(n, { size: 18 })}
+                <div>
+                  <div className="name">{familyLabel(n)}</div>
+                  <div className="small dim">
+                    {s.activity ? (s.activity.present ? `有訊號 · ${s.activity.relative_db} dB` : '幾乎無聲，未轉譜') : ''}
+                  </div>
+                  <div className="small dim" title={s.model_id}>{s.model_id.startsWith('ensemble:') ? '雙模型合成' : s.model_id}</div>
                 </div>
-                <div className="small muted" title={s.model_id}>{s.model_id.startsWith('ensemble:') ? '雙模型合成' : s.model_id}</div>
               </div>
               <div>
-                <div className="row" style={{ marginBottom: 6 }}>
-                  <button className={`btn ${solo === n ? 'on' : ''}`} aria-pressed={solo === n}
-                    onClick={() => setSolo(solo === n ? null : n)}>Solo</button>
-                  <button className={`btn ${muted[n] ? 'on' : ''}`} aria-pressed={!!muted[n]}
-                    onClick={() => setMuted({ ...muted, [n]: !muted[n] })}>Mute</button>
+                <div className="row">
+                  <button className={`tbtn text sm ${solo === n ? 'on' : ''}`} aria-pressed={solo === n} title="獨奏"
+                    onClick={() => setSolo(solo === n ? null : n)}>S</button>
+                  <button className={`tbtn text sm ${muted[n] ? 'on' : ''}`} aria-pressed={!!muted[n]} title="靜音"
+                    onClick={() => setMuted({ ...muted, [n]: !muted[n] })}>M</button>
                   <label className="check">
                     <input type="checkbox" checked={absent}
                       onChange={(e) => void onOverride(n, e.target.checked ? 'absent' : null)} />
@@ -110,19 +117,19 @@ export function StemsPage({ project, config, running, onOverride, onRerun }: {
                         title={`${fmtTime(i * conf.window)}：${conf.active[i] ? `信心 ${v.toFixed(2)}` : '無聲'}`} />
                     ))}
                   </div>
-                ) : <div className="small muted">沒有第二個分離模型可比對，無信心資料。</div>}
+                ) : <div className="small dim">沒有第二個分離模型可比對，無信心資料。</div>}
                 <audio ref={(el) => { audios.current[n] = el; }} preload="auto"
                   src={api.fileUrl(project.meta.id, `run/stems/${n}.wav`)} />
               </div>
             </div>
           );
         })}
-      </div>
-      <div className="row">
+      </section>
+      <div className="actions">
         <button className="btn primary" disabled={!dirty || running} onClick={onRerun}>
-          套用修正並重跑後段流程
+          <I.refresh />套用修正並重跑後段流程
         </button>
-        <span className="small muted">{dirty ? '分離結果會沿用快取，只重跑轉譜之後的步驟。' : '勾選上方的修正後可重跑。'}</span>
+        <span className="dim">{dirty ? '分離結果沿用快取，只重跑轉譜之後的步驟。' : '勾選上方的修正後可重跑。'}</span>
       </div>
     </>
   );

@@ -149,7 +149,8 @@ def stress_note(rng: random.Random, track: Track, bar: int, pos: Fraction, dur: 
                      ("muscriptor_medium",), string, fret, (), 0.0, 0.0)
 
 
-REPORT_KEYS = ("verified", "mismatches", "notes_written")
+REPORT_KEYS = {"gp": ("verified", "mismatches", "notes_written"),
+               "gp5": ("notes_written", "notes_dropped", "warnings")}
 
 
 def python_exports(score: Score, out: Path, formats: set[str],
@@ -164,9 +165,8 @@ def python_exports(score: Score, out: Path, formats: set[str],
     for fmt in formats:
         try:
             rep = jobs[fmt]()
-            if fmt == "gp":
-                reports[fmt] = {"verified": rep.verified, "mismatches": rep.mismatches,
-                                "notes_written": rep.notes_written}
+            if fmt in REPORT_KEYS:
+                reports[fmt] = {k: getattr(rep, k) for k in REPORT_KEYS[fmt]}
             errors[fmt] = None
         except Exception as exc:  # noqa: BLE001 - record and compare failures too
             errors[fmt] = f"{type(exc).__name__}: {exc}"[:300]
@@ -188,7 +188,7 @@ def go_exports(score_path: Path, out: Path, formats: set[str],
     res = {r["format"]: (None if r["ok"] else r.get("error", "failed")) for r in results}
     for r in results:
         if r["ok"] and isinstance(r.get("report"), dict):
-            reports[r["format"]] = {k: r["report"].get(k) for k in REPORT_KEYS}
+            reports[r["format"]] = {k: r["report"].get(k) for k in REPORT_KEYS[r["format"]]}
     return {fmt: res.get(fmt, "missing") for fmt in formats}
 
 

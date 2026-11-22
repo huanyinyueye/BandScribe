@@ -11,6 +11,7 @@ import (
 	"os"
 
 	"bandscribe/internal/export/gp"
+	"bandscribe/internal/export/gp5"
 	"bandscribe/internal/export/midi"
 	"bandscribe/internal/export/musicxml"
 	"bandscribe/internal/score"
@@ -43,6 +44,7 @@ func run(format, path string, fn func() (any, error)) (r result) {
 func main() {
 	scorePath := flag.String("score", "", "score.json")
 	gpPath := flag.String("gp", "", "Guitar Pro 7/8 output")
+	gp5Path := flag.String("gp5", "", "Guitar Pro 5 output")
 	midiPath := flag.String("midi", "", "MIDI output")
 	xmlPath := flag.String("musicxml", "", "MusicXML output")
 	flag.Parse()
@@ -58,6 +60,9 @@ func main() {
 	var results []result
 	if *gpPath != "" {
 		results = append(results, run("gp", *gpPath, func() (any, error) { return gp.Write(s, *gpPath) }))
+	}
+	if *gp5Path != "" {
+		results = append(results, run("gp5", *gp5Path, func() (any, error) { return gp5.Write(s, *gp5Path) }))
 	}
 	if *midiPath != "" {
 		results = append(results, run("midi", *midiPath, func() (any, error) { return nil, midi.Write(s, *midiPath) }))

@@ -4,28 +4,46 @@
 
 Inputs: every out/*/score.json plus generated stress scores (all note values, dots, tuplets,
 ties across bars, per-beat tempo, empty bars, drums, 4-8 strings, F clef, keys, sections,
-Unicode). The reference is the Python exporter in this repository (and alphaTab through Node
-for `.gp`). MIDI, MusicXML and `.gp5` must be byte-identical; `.gp` must have identical zip
-entries and an identical score.gpif element tree. Results go to .cache/parity/report.json.
+Unicode). The reference is the Python exporter as of commit PARITY_REF (default below, the last
+commit before the exporters moved to Go), extracted with `git archive` into .cache/parity/ref;
+`.gp` also needs alphaTab through Node (`npm install` in exporter/). MIDI, MusicXML and `.gp5`
+must be byte-identical; `.gp` must have identical zip entries and an identical score.gpif
+element tree. Results go to .cache/parity/report.json.
 """
 
 from __future__ import annotations
 
 import argparse
+import io
 import json
+import os
 import random
 import subprocess
 import sys
+import tarfile
 import traceback
 from fractions import Fraction
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT))
+CACHE = ROOT / ".cache" / "parity"
+REF = os.environ.get("PARITY_REF", "1788a40")
+
+
+def reference_tree(ref: str) -> Path:
+    dest = CACHE / "ref" / ref
+    if not (dest / "bandscribe").is_dir():
+        data = subprocess.run(["git", "archive", ref, "bandscribe"], cwd=ROOT, check=True,
+                              capture_output=True).stdout
+        with tarfile.open(fileobj=io.BytesIO(data)) as tar:
+            tar.extractall(dest)
+    return dest
+
+
+sys.path.insert(0, str(reference_tree(REF)))
 
 from bandscribe.notation.score_model import BarSpec, Score, ScoreNote, Track  # noqa: E402
 
-CACHE = ROOT / ".cache" / "parity"
 GO_EXE = CACHE / "bandscribe-export.exe"
 
 SIGNATURES = [(4, 4), (3, 4), (2, 4), (5, 4), (6, 8), (12, 8), (9, 8), (7, 8), (3, 8), (2, 2),
@@ -157,6 +175,8 @@ def python_exports(score: Score, out: Path, formats: set[str],
                    reports: dict[str, dict]) -> dict[str, str | None]:
     from bandscribe.notation import export_gp, export_gp5, export_midi, export_musicxml
 
+    export_gp.EXPORTER_DIR = ROOT / "exporter"
+    export_gp.SCRIPT = export_gp.EXPORTER_DIR / "export_gp.mjs"
     errors: dict[str, str | None] = {}
     jobs = {"midi": lambda: export_midi.export_midi(score, out / "score.mid"),
             "musicxml": lambda: export_musicxml.export_musicxml(score, out / "score.musicxml"),

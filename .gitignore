@@ -8,3 +8,4 @@ dist/
 out/
 *.egg-info/
 .cache/
+/bin/
